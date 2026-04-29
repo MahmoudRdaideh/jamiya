@@ -85,11 +85,16 @@
   .tx-table td{padding:12px 16px;font-size:14px;border-bottom:1px solid var(--border);vertical-align:middle}
   .tx-table tr:last-child td{border-bottom:none}
   .tx-table tr:hover td{background:rgba(108,99,255,.05);cursor:pointer}
+  .report-tab{padding:9px 18px;font-size:13px;font-weight:500;border:none;border-bottom:3px solid transparent;background:none;color:var(--text2);cursor:pointer;font-family:inherit;transition:all .2s;margin-bottom:-1px}
+  .report-tab:hover{color:var(--text)}
+  .report-tab.active-rtab{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
   .dd-item{display:block;width:100%;padding:11px 16px;background:none;border:none;color:var(--text);font-family:inherit;font-size:13px;text-align:right;cursor:pointer;transition:background .15s}
   .dd-item:hover{background:var(--surface2)}
   .dd-item.active-dd{color:var(--accent);font-weight:600;background:rgba(108,99,255,.08)}
   .dd-item+.dd-item{border-top:1px solid var(--border)}
   .tx-tfoot-row td{background:var(--surface2);border-top:2px solid var(--border);font-size:13px;font-weight:700;padding:12px 16px;position:sticky;bottom:0}
+  #offline-banner{display:none;position:fixed;bottom:70px;left:50%;transform:translateX(-50%);background:#e24b4a;color:#fff;padding:8px 20px;border-radius:20px;font-size:13px;font-weight:600;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.3);gap:8px;align-items:center}
+  #offline-banner.show{display:flex}
   .tx-tfoot-row td:first-child{color:var(--text2);font-size:12px}
   .buyer-name{font-weight:600}.item-name{color:var(--text2);font-size:13px}
 
@@ -99,6 +104,7 @@
   .badge-orange{background:rgba(251,133,0,.15);color:var(--orange)}
   .badge-blue{background:rgba(108,99,255,.15);color:var(--accent)}
   .badge-gray{background:rgba(145,148,179,.15);color:var(--text2)}
+  .badge-red{background:rgba(231,76,60,.15);color:var(--red);border:1px solid rgba(231,76,60,.3)}
 
   /* MODAL */
   .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;z-index:200;padding:20px;opacity:0;pointer-events:none;transition:opacity .3s}
@@ -296,6 +302,11 @@
   </div>
 </div>
 
+<!-- OFFLINE BANNER -->
+<div id="offline-banner">
+  📡 لا يوجد اتصال بالإنترنت — تعمل على البيانات المحفوظة محلياً
+</div>
+
 <!-- MAINTENANCE PAGE -->
 <div id="maintenance-screen" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:9998;display:none;align-items:center;justify-content:center;flex-direction:column;gap:20px;padding:30px;text-align:center">
   <div style="font-size:64px">🔧</div>
@@ -328,6 +339,7 @@
     <div class="nav-tabs">
       <button class="nav-tab active" onclick="showPage('dashboard')">📊 لوحة التحكم</button>
       <button class="nav-tab" onclick="showPage('transactions')">📋 المعاملات</button>
+      <button class="nav-tab" onclick="showPage('customers')">👥 العملاء</button>
       <button class="nav-tab" onclick="showPage('yearly')">📈 السنوية</button>
       <button class="nav-tab" onclick="showPage('report')">📥 تقرير المدفوعات</button>
       <button class="nav-tab" onclick="showPage('shareholders')">👥 المساهمون</button>
@@ -371,6 +383,16 @@
           </table>
         </div>
       </div>
+
+      <!-- آخر الدفعات -->
+      <div>
+        <div class="section-title" style="display:flex;align-items:center;justify-content:space-between">
+          <span>💳 آخر الدفعات</span>
+          <span style="font-size:12px;color:var(--text2);font-weight:400">مع سند القبض</span>
+        </div>
+        <div id="recent-payments-list" style="display:flex;flex-direction:column;gap:8px"></div>
+      </div>
+
     </div>
   </div>
 
@@ -388,6 +410,7 @@
           <button class="filter-btn active" onclick="setFilter('all',this)">الكل</button>
           <button class="filter-btn" onclick="setFilter('completed',this)">مكتملة</button>
           <button class="filter-btn" onclick="setFilter('remaining',this)">متبقي</button>
+          <button class="filter-btn" onclick="setFilter('written_off',this)" style="color:var(--red)">🔴 ديون معدومة</button>
         </div>
       </div>
       <div id="tx-summary" class="summary-bar" style="display:none"></div>
@@ -407,9 +430,8 @@
     <div class="dashboard">
       <div style="display:flex;justify-content:flex-end;margin-bottom:16px">
         <div style="display:flex;justify-content:flex-end;margin-bottom:16px;gap:8px;flex-wrap:wrap">
-          <button class="btn btn-danger" onclick="deleteAllYearly()" style="font-size:12px">🗑 حذف جميع السنوات</button>
-          <button id="btn-seed-yearly" class="btn btn-outline" onclick="seedYearlyData()" style="font-size:12px;border-color:var(--gold);color:var(--gold)">📊 رفع جميع السنوات</button>
           <button class="btn btn-primary" onclick="openAddYearly()">➕ إضافة سنة جديدة</button>
+          <button id="btn-year-close" class="btn btn-primary" onclick="openYearClose()" style="display:none;background:linear-gradient(135deg,#1E3A5F,#2E86AB);font-size:13px">🔒 إغلاق السنة المالية</button>
         </div>
       </div>
       <div class="yearly-grid" id="yearly-grid" style="grid-template-columns:repeat(auto-fill,minmax(320px,1fr))"></div>
@@ -418,34 +440,95 @@
 
   <!-- REPORT -->
   <div id="page-report" class="page fade-in">
-    <div class="report-filters">
-      <div class="section-title">تقرير المدفوعات</div>
-      <div class="report-filter-grid">
-        <div class="form-group"><label>من تاريخ</label><input type="date" class="form-input" id="r-date-from"></div>
-        <div class="form-group"><label>إلى تاريخ</label><input type="date" class="form-input" id="r-date-to"></div>
-        <div class="form-group"><label>حالة العميل</label>
-          <select class="form-input" id="r-status">
-            <option value="all">الكل</option>
-            <option value="paid">🔒 مغلق (مكتمل)</option>
-            <option value="active">🔓 نشط (متبقي)</option>
-            <option value="pending">جديدة (لم تبدأ)</option>
-          </select>
+    <!-- تبويبات التقرير -->
+    <div style="display:flex;gap:8px;margin-bottom:20px;border-bottom:1px solid var(--border);padding-bottom:0">
+      <button id="rtab-transactions" class="report-tab active-rtab" onclick="switchReportTab('transactions')">📋 تقرير المعاملات</button>
+      <button id="rtab-payments" class="report-tab" onclick="switchReportTab('payments')">💳 سجل الدفعات</button>
+    </div>
+
+    <!-- تقرير المعاملات (الأصلي) -->
+    <div id="rpanel-transactions">
+      <div class="report-filters">
+        <div class="section-title">تقرير المعاملات</div>
+        <div class="report-filter-grid">
+          <div class="form-group"><label>من تاريخ</label><input type="date" class="form-input" id="r-date-from"></div>
+          <div class="form-group"><label>إلى تاريخ</label><input type="date" class="form-input" id="r-date-to"></div>
+          <div class="form-group"><label>حالة العميل</label>
+            <select class="form-input" id="r-status">
+              <option value="all">الكل</option>
+              <option value="paid">🔒 مغلق (مكتمل)</option>
+              <option value="active">🔓 نشط (متبقي)</option>
+              <option value="pending">جديدة (لم تبدأ)</option>
+            </select>
+          </div>
+          <div class="form-group"><label>اسم المشتري</label><input type="text" class="form-input" id="r-buyer" placeholder="اختياري"></div>
         </div>
-        <div class="form-group"><label>اسم المشتري</label><input type="text" class="form-input" id="r-buyer" placeholder="اختياري"></div>
+        <div class="btn-row" style="margin-top:16px">
+          <button class="btn btn-outline" onclick="clearReportFilters()">🔄 مسح</button>
+          <button class="btn btn-primary" onclick="generateReport()">🔍 توليد التقرير</button>
+          <button class="btn btn-success" onclick="exportReportXLSX()">📥 تصدير Excel</button>
+        </div>
       </div>
-      <div class="btn-row" style="margin-top:16px">
-        <button class="btn btn-outline" onclick="clearReportFilters()">🔄 مسح</button>
-        <button class="btn btn-primary" onclick="generateReport()">🔍 توليد التقرير</button>
-        <button class="btn btn-success" onclick="exportReportXLSX()">📥 تصدير Excel</button>
+      <div id="report-result" style="display:none;border:1px solid var(--border);border-radius:16px;overflow:hidden">
+        <div class="report-summary" id="report-summary"></div>
+        <div class="tx-table-wrap" style="border-radius:0">
+          <table class="tx-table">
+            <thead><tr><th>#</th><th>رقم العميل</th><th>المشتري</th><th>المادة</th><th>تاريخ آخر دفعة</th><th>المدفوع</th><th>المتبقي</th><th>الحالة</th><th>حالة العميل</th></tr></thead>
+            <tbody id="report-tbody"></tbody>
+          </table>
+        </div>
       </div>
     </div>
-    <div id="report-result" style="display:none;border:1px solid var(--border);border-radius:16px;overflow:hidden">
-      <div class="report-summary" id="report-summary"></div>
-      <div class="tx-table-wrap" style="border-radius:0">
-        <table class="tx-table">
-          <thead><tr><th>#</th><th>المشتري</th><th>المادة</th><th>تاريخ الدفع</th><th>رقم القسط</th><th>المبلغ المدفوع</th><th>المستحق</th><th>حالة القسط</th><th>حالة العميل</th></tr></thead>
-          <tbody id="report-tbody"></tbody>
-        </table>
+
+    <!-- سجل الدفعات -->
+    <div id="rpanel-payments" style="display:none">
+      <div class="report-filters">
+        <div class="section-title">سجل الدفعات</div>
+        <div class="report-filter-grid">
+          <div class="form-group"><label>من تاريخ</label><input type="date" class="form-input" id="p-date-from"></div>
+          <div class="form-group"><label>إلى تاريخ</label><input type="date" class="form-input" id="p-date-to"></div>
+          <div class="form-group"><label>السنة المالية</label>
+            <select class="form-input" id="p-fiscal-year">
+              <option value="all">كل السنوات</option>
+              <option value="2025/2026">2025/2026</option>
+              <option value="2024/2025">2024/2025</option>
+              <option value="2023/2024">2023/2024</option>
+              <option value="2022/2023">2022/2023</option>
+              <option value="2021/2022">2021/2022</option>
+              <option value="2020/2021">2020/2021</option>
+              <option value="2019/2020">2019/2020</option>
+            </select>
+          </div>
+          <div class="form-group"><label>اسم العميل</label><input type="text" class="form-input" id="p-buyer" placeholder="اختياري"></div>
+        </div>
+        <div class="btn-row" style="margin-top:16px">
+          <button class="btn btn-outline" onclick="clearPaymentsFilters()">🔄 مسح</button>
+          <button class="btn btn-primary" onclick="generatePaymentsReport()">🔍 عرض الدفعات</button>
+          <button class="btn btn-success" onclick="exportPaymentsXLSX()">📥 تصدير Excel</button>
+        </div>
+      </div>
+
+      <!-- ملخص -->
+      <div id="payments-summary" style="display:none;margin-bottom:16px"></div>
+
+      <!-- الجدول -->
+      <div id="payments-result" style="display:none;border:1px solid var(--border);border-radius:16px;overflow:hidden">
+        <div class="tx-table-wrap" style="border-radius:0">
+          <table class="tx-table">
+            <thead><tr>
+              <th>#</th>
+              <th>العميل</th>
+              <th>المادة</th>
+              <th>السنة المالية</th>
+              <th>المبلغ المدفوع</th>
+              <th>تاريخ الدفعة</th>
+              <th>المتبقي</th>
+              <th>المسؤول</th>
+              <th>السند</th>
+            </tr></thead>
+            <tbody id="payments-tbody"></tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
@@ -472,7 +555,7 @@
         <span style="font-size:13px;color:var(--text2);margin-left:6px">تصفية حسب السنة:</span>
         <div class="shd-year-selector" id="shd-year-pills"></div>
         <button class="btn btn-outline" onclick="renderShDetails('all')" style="font-size:12px;padding:5px 14px">عرض الكل</button>
-        <button class="btn btn-outline" onclick="reseedShDetails()" id="btn-reseed-sh" style="font-size:12px;padding:5px 14px;border-color:var(--red);color:var(--red)">🔄 إعادة رفع البيانات</button>
+
       </div>
       <div id="shd-content"></div>
     </div>
@@ -661,6 +744,10 @@
       <div class="modal-body">
         <div id="add-user-error" style="display:none;background:rgba(255,77,109,.12);border:1px solid rgba(255,77,109,.3);border-radius:8px;padding:10px;font-size:13px;color:var(--red);margin-bottom:14px"></div>
         <div class="form-group">
+          <label>الاسم الكامل</label>
+          <input id="new-user-name" type="text" class="form-input" placeholder="محمود الردايدة">
+        </div>
+        <div class="form-group">
           <label>البريد الإلكتروني</label>
           <input id="new-user-email" type="email" class="form-input" placeholder="user@example.com" style="direction:ltr;text-align:left">
         </div>
@@ -695,6 +782,10 @@
       <div class="card">
         <div class="section-title">🎨 هوية النظام (Branding)</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px">
+          <div class="form-group">
+            <label>اسمك الكامل (يظهر في السندات والتقارير)</label>
+            <input id="s-display-name" type="text" class="form-input" placeholder="محمود الردايدة" oninput="settingsDirty=true">
+          </div>
           <div class="form-group">
             <label>اسم النظام</label>
             <input id="s-sys-name" type="text" class="form-input" placeholder="نظام إدارة الجمعية — جمعتنا">
@@ -816,6 +907,146 @@
         </div>
         <div id="logs-pagination" style="display:flex;justify-content:center;gap:8px;margin-top:16px;flex-wrap:wrap"></div>
       </div>
+    </div>
+  </div>
+
+
+<!-- WRITE-OFF MODAL -->
+<div id="writeoff-overlay" class="modal-overlay" onclick="if(event.target===this)closeWriteOffModal()">
+  <div class="modal-box" style="max-width:480px;max-height:90vh;overflow-y:auto">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" style="color:var(--red)">🔴 شطب الديون المعدومة</div>
+        <div class="modal-subtitle" id="writeoff-subtitle">إجراء محاسبي لا رجعة فيه</div>
+      </div>
+      <button class="modal-close" onclick="closeWriteOffModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="background:rgba(231,76,60,.08);border:1px solid rgba(231,76,60,.3);border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:var(--red)">
+        ⚠️ هذا الإجراء نهائي ولا يمكن التراجع عنه. سيُسجَّل قيد محاسبي في سجل الديون المعدومة.
+      </div>
+      <div id="writeoff-summary" style="background:var(--surface2);border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:13px"></div>
+      <div class="form-group">
+        <label>سبب الشطب <span style="color:var(--red)">*</span></label>
+        <select id="writeoff-reason" class="form-input">
+          <option value="">— اختر السبب —</option>
+          <option value="تعذر التحصيل">تعذر التحصيل</option>
+          <option value="وفاة العميل">وفاة العميل</option>
+          <option value="إفلاس العميل">إفلاس العميل</option>
+          <option value="مجهول المكان">مجهول المكان</option>
+          <option value="قرار مجلس الإدارة">قرار مجلس الإدارة</option>
+          <option value="أخرى">أخرى</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>ملاحظات إضافية</label>
+        <textarea id="writeoff-notes" class="form-input" rows="3" placeholder="أي تفاصيل إضافية..." style="resize:vertical"></textarea>
+      </div>
+      <div class="form-group">
+        <label>تأكيد الشطب — اكتب كلمة <strong>"شطب"</strong> للتأكيد</label>
+        <input id="writeoff-confirm-input" type="text" class="form-input" placeholder='اكتب "شطب" هنا'>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:20px">
+        <button class="btn btn-outline" onclick="closeWriteOffModal()" style="flex:1">إلغاء</button>
+        <button class="btn btn-danger" onclick="confirmWriteOff()" style="flex:2" id="writeoff-confirm-btn">🔴 تأكيد الشطب</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
+<!-- YEAR CLOSE MODAL -->
+<div id="yearclose-overlay" class="modal-overlay" onclick="if(event.target===this)closeYearClose()">
+  <div class="modal-box" style="max-width:700px;max-height:92vh;overflow-y:auto">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" style="color:#1E3A5F">🔒 إغلاق السنة المالية</div>
+        <div class="modal-subtitle" id="yearclose-subtitle">مراجعة وتوزيع الأرباح</div>
+      </div>
+      <button class="modal-close" onclick="closeYearClose()">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <!-- تحذير -->
+      <div id="yearclose-missing-warn" style="display:none;background:rgba(231,76,60,.08);border:1px solid rgba(231,76,60,.3);border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:var(--red)">
+        ❌ السنة المالية المختارة غير موجودة في البيانات السنوية.<br>
+        يجب إضافة بياناتها أولاً من صفحة السنوية ← ➕ إضافة سنة جديدة، ثم إدخال: رأس المال، الأرباح، المصاريف.
+      </div>
+      <div style="background:rgba(30,58,95,.08);border:1px solid rgba(30,58,95,.25);border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:#1E3A5F">
+        ⚠️ إغلاق السنة المالية إجراء رسمي — سيُسجَّل في قاعدة البيانات ولا يمكن التراجع عنه.
+        المعاملات غير المسددة ستبقى قابلة للتحصيل في السنة الجديدة.
+      </div>
+
+      <!-- ملخص السنة -->
+      <div class="section-title" style="margin-bottom:12px">📊 ملخص السنة المالية المُغلقة</div>
+      <div id="yearclose-summary" style="background:var(--surface2);border-radius:10px;padding:16px;margin-bottom:16px"></div>
+
+      <!-- توزيع الأرباح -->
+      <div class="section-title" style="margin-bottom:12px">💰 توزيع الأرباح على المساهمين</div>
+      <div id="yearclose-distribution" style="margin-bottom:16px"></div>
+
+      <!-- تاريخ التوزيع -->
+      <div class="form-group">
+        <label>تاريخ التوزيع الرسمي</label>
+        <input type="date" id="yearclose-date" class="form-input" value="">
+      </div>
+
+      <!-- ملاحظات -->
+      <div class="form-group">
+        <label>ملاحظات قرار الإغلاق</label>
+        <textarea id="yearclose-notes" class="form-input" rows="2" placeholder="قرار مجلس الإدارة بتاريخ..." style="resize:vertical"></textarea>
+      </div>
+
+      <!-- تأكيد -->
+      <div class="form-group">
+        <label>تأكيد الإغلاق — اكتب <strong>"إغلاق"</strong></label>
+        <input id="yearclose-confirm" type="text" class="form-input" placeholder='اكتب "إغلاق" هنا'>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-top:20px">
+        <button class="btn btn-outline" onclick="closeYearClose()" style="flex:1">إلغاء</button>
+        <button class="btn btn-primary" onclick="confirmYearClose()" style="flex:2;background:linear-gradient(135deg,#1E3A5F,#2E86AB)" id="yearclose-btn">🔒 تأكيد الإغلاق الرسمي</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+  <!-- CUSTOMERS PAGE -->
+  <div id="page-customers" class="page fade-in">
+    <div style="max-width:960px;margin:0 auto">
+      <div class="card" style="margin-bottom:20px">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:16px">
+          <div class="section-title" style="margin:0">👥 قائمة العملاء</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <input id="cust-search" type="text" class="form-input" placeholder="🔍 بحث باسم العميل..." style="width:220px;font-size:13px;padding:7px 12px" oninput="renderCustomersPage()">
+            <select id="cust-fiscal" class="form-input" style="width:160px;font-size:13px;padding:7px 12px" onchange="renderCustomersPage()">
+              <option value="all">كل السنوات</option>
+              <option value="2025/2026">2025/2026</option>
+              <option value="2024/2025">2024/2025</option>
+              <option value="2023/2024">2023/2024</option>
+              <option value="2022/2023">2022/2023</option>
+              <option value="2021/2022">2021/2022</option>
+              <option value="2020/2021">2020/2021</option>
+              <option value="2019/2020">2019/2020</option>
+            </select>
+          </div>
+        </div>
+        <div id="customers-summary" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:16px"></div>
+        <div id="customers-grid" style="display:flex;flex-direction:column;gap:8px"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CUSTOMER PROFILE PAGE -->
+  <div id="page-customer-profile" class="page fade-in">
+    <div style="max-width:960px;margin:0 auto">
+      <!-- Back button -->
+      <button onclick="showPage('customers')" class="btn btn-outline" style="margin-bottom:16px;font-size:13px">
+        ← رجوع للعملاء
+      </button>
+      <div id="customer-profile-content"></div>
     </div>
   </div>
 
@@ -952,7 +1183,14 @@
         <div class="form-group"><label>صافي الأرباح (د.ا)</label><input type="number" class="form-input" id="y-net-profit" placeholder="تلقائي" readonly style="opacity:.7;background:var(--surface2)"></div>
         <div class="form-group"><label>المبيعات غير المحصلة (د.ا)</label><input type="number" class="form-input" id="y-uncollected" placeholder="تلقائي" readonly style="opacity:.7;background:var(--surface2)"></div>
         <div class="form-group"><label>الأرباح الموزعة (د.ا)</label><input type="number" class="form-input" id="y-dist" placeholder="تلقائي" readonly style="opacity:.7;background:var(--surface2)"></div>
-        <div class="form-group"><label>موجود الصندوق (د.ا)</label><input type="number" class="form-input" id="y-fund" placeholder="تلقائي" readonly style="opacity:.7;background:var(--surface2)"></div>
+        <div class="form-group">
+          <label style="display:flex;align-items:center;gap:8px">
+            موجود الصندوق (د.ا)
+            <span id="fund-info-btn" onclick="showFundBreakdown()" style="cursor:pointer;background:rgba(108,99,255,.15);color:var(--accent);border-radius:50%;width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700" title="تفاصيل الحساب">ⓘ</span>
+          </label>
+          <input type="number" class="form-input" id="y-fund" placeholder="تلقائي" readonly style="opacity:.7;background:var(--surface2)">
+          <div id="fund-breakdown-popup" style="display:none;margin-top:8px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;font-size:12px"></div>
+        </div>
         <div class="form-group"><label>حصة السهم الواحد (د.ا)</label><input type="number" class="form-input" id="y-pps" placeholder="تلقائي" readonly style="opacity:.7;background:var(--surface2)"></div>
 
         <!-- يدوي -->
@@ -1009,13 +1247,31 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const auth = firebase.auth();
 
+// ── Offline Persistence — يعمل بدون إنترنت ──────────────────
+db.enablePersistence({ synchronizeTabs: true })
+  .then(() => console.log('✅ Offline mode enabled — البيانات محفوظة محلياً'))
+  .catch(err => {
+    if (err.code === 'failed-precondition') {
+      console.warn('⚠️ Offline mode: يعمل تبويب واحد فقط في نفس الوقت');
+    } else if (err.code === 'unimplemented') {
+      console.warn('⚠️ Offline mode غير مدعوم في هذا المتصفح');
+    }
+  });
+
 // ============================================================
 // AUTH STATE & ROLE
 // ============================================================
 let currentUser = null;
 let currentRole = null; // 'admin' | 'editor' | 'viewer'
+let currentDisplayName = null; // الاسم الكامل للمستخدم
 
 const ROLE_LABELS = { admin: '👑 أدمن', editor: '✏️ محرر', viewer: '👁 مشاهد' };
+
+// اسم المستخدم الحالي (الاسم الكامل أو الإيميل)
+function getUserLabel() {
+  return currentDisplayName || currentUser?.email || '—';
+}
+
 
 // Hide app until auth resolves
 document.getElementById('main-header').style.display = 'none';
@@ -1050,7 +1306,8 @@ auth.onAuthStateChanged(async (user) => {
       currentRole = data.role || 'viewer';
       document.getElementById('login-screen').style.display = 'none';
       document.getElementById('loading-screen').style.display = 'flex';
-      document.getElementById('user-name-display').textContent = data.email || user.email;
+      currentDisplayName = data.displayName || data.email || user.email;
+      document.getElementById('user-name-display').textContent = currentDisplayName;
       document.getElementById('user-role-display').textContent = ROLE_LABELS[currentRole] || currentRole;
       // Check maintenance mode
       const maintDoc = await db.collection('app_settings').doc('maintenance').get();
@@ -1063,7 +1320,14 @@ auth.onAuthStateChanged(async (user) => {
       writeAuditLog('LOGIN', user.email, 'تسجيل دخول للنظام').catch(()=>{});
       // Show admin-only tabs
       if (currentRole === 'admin') {
-        document.getElementById('tab-settings').style.display = '';
+        const tabSettings = document.getElementById('tab-settings');
+        const btnYearClose = document.getElementById('btn-year-close');
+        const btnCloseAll = document.getElementById('btn-close-all');
+        if (tabSettings)   tabSettings.style.display = '';
+        if (btnYearClose)  btnYearClose.style.display = '';
+        if (btnCloseAll)   btnCloseAll.style.display = '';
+        const btnFixDates = document.getElementById('btn-fix-dates');
+        if (btnFixDates)   btnFixDates.style.display = '';
       }
       // Apply viewer restrictions
       applyRoleRestrictions();
@@ -1144,7 +1408,7 @@ async function renderUsersPage() {
       const d = doc.data();
       const isSelf = currentUser && doc.id === currentUser.uid;
       return `<tr>
-        <td style="font-size:13px">${d.email || '—'}</td>
+        <td style="font-size:13px"><div style="font-weight:500">${d.displayName||d.email||'—'}</div><div style="font-size:11px;color:var(--text2)">${d.email||''}</div></td>
         <td>
           ${isSelf
             ? `<span class="badge badge-green">${ROLE_LABELS[d.role]||d.role} (أنت)</span>`
@@ -1218,7 +1482,8 @@ async function createUser() {
     await secondaryAuth.signOut();
     await secondaryApp.delete();
     // Save role in Firestore
-    await db.collection('users').doc(uid).set({ email, role });
+    const displayName = document.getElementById('new-user-name')?.value.trim() || email;
+    await db.collection('users').doc(uid).set({ email, role, displayName });
     await writeAuditLog('USER_CREATED', email, `إنشاء حساب جديد بصلاحية "${ROLE_LABELS[role]||role}"`);
     showToast(`✅ تم إنشاء حساب ${email} بصلاحية ${ROLE_LABELS[role]}`);
     closeAddUserModal();
@@ -1997,7 +2262,7 @@ async function seedYearlyData(){
      total_profit:1454, expenses:222, founding_exp:0, legal_fees:0,
      net_profit:1232, uncollected:0, distributed:1232,
      reserved:264, reserve_forwarded:0, fund_balance:0,
-     profit_per_share:22.5, distribution_date:'4/5/2019',
+     profit_per_share:22.5, distribution_date:'4/5/2015',
      members:[
        {name:'مالك علي محمد الردايدة',  shares:2,  total:202.5, paid:202.5, remaining:0, reserved:0},
        {name:'بدر خالد محمد الردايدة',  shares:1,  total:90,    paid:90,    remaining:0, reserved:0},
@@ -2011,8 +2276,17 @@ async function seedYearlyData(){
      capital:3800, num_sales:32, sales:6925, sales_with_profit:8258,
      total_profit:1334, expenses:196, founding_exp:120, legal_fees:0,
      net_profit:1018, uncollected:0, distributed:1018,
-     reserved:363, reserve_forwarded:0, fund_balance:0,
-     profit_per_share:0, distribution_date:'', members:[]},
+     reserved:0, reserve_forwarded:0, fund_balance:0,
+     profit_per_share:26.7895, distribution_date:'4/5/2016',
+     members:[
+       {name:'مالك علي محمد الردايدة',  shares:7,  total:187.53, paid:187.53, remaining:0, reserved:0},
+       {name:'بدر خالد محمد الردايدة',  shares:4,  total:107.16, paid:107.16, remaining:0, reserved:0},
+       {name:'محمد صالح محمد الردايدة', shares:4,  total:107.16, paid:107.16, remaining:0, reserved:0},
+       {name:'احمد خالد محمد الردايدة', shares:7,  total:187.53, paid:187.53, remaining:0, reserved:0},
+       {name:'منير صالح محمد الردايدة', shares:4,  total:107.16, paid:107.16, remaining:0, reserved:0},
+       {name:'محمود صالح محمد الردايدة',shares:8,  total:214.32, paid:214.32, remaining:0, reserved:0},
+       {name:'يزيد خالد محمد الردايدة', shares:4,  total:107.16, paid:107.16, remaining:0, reserved:0},
+     ]},
     {year:'2016/2017',label:'العام الثالث',
      capital:4100, num_sales:53, sales:9660, sales_with_profit:11798,
      total_profit:2138, expenses:322, founding_exp:0, legal_fees:0,
@@ -2167,10 +2441,10 @@ async function saveYearlyToFirebase(y) {
 // ============================================================
 function fmt(n){return(n||0).toLocaleString('ar-JO',{minimumFractionDigits:2,maximumFractionDigits:2})}
 function txStatus(tx){
+  if(tx.status==='written_off')return{label:'ديون معدومة',cls:'badge-red'};
   const paid=tx.total_paid||0;
   const rem=tx.remaining||0;
   const fp=tx.first_payment||0;
-  // مكتملة: المتبقي صفر (سواء دُفع شيء أم كانت معاملة بدون متبقي من الأساس)
   if(rem<=0)return{label:'مكتملة',cls:'badge-green'};
   if(rem>0)return{label:'متبقي',cls:'badge-orange'};
   if(paid>0||fp>0)return{label:'نشطة',cls:'badge-blue'};
@@ -2180,7 +2454,7 @@ function showPage(name){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
   document.getElementById('page-'+name).classList.add('active');
-  const pages=['dashboard','transactions','yearly','report','shareholders','shdetails','add','users','settings','logs'];
+  const pages=['dashboard','transactions','yearly','report','shareholders','shdetails','add','users','settings','logs','customers','customer-profile'];
   document.querySelectorAll('.nav-tab')[pages.indexOf(name)]?.classList.add('active');
   currentPage=name;
   if(name==='dashboard')renderDashboard();
@@ -2189,6 +2463,8 @@ function showPage(name){
   if(name==='shareholders')renderShareholders();
   if(name==='shdetails')renderShDetails('all');
   if(name==='settings'){ if(currentRole==='admin'){ renderSettingsPage(); setDropdownActive('dd-settings'); } else showPage('dashboard'); }
+  if(name==='customers'){ renderCustomersPage(); }
+  if(name==='customer-profile'){ /* rendered by openCustomerProfile */ }
   if(name==='users')   { if(currentRole==='admin'){ renderUsersPage();    setDropdownActive('dd-users');    } else showPage('dashboard'); }
   if(name==='logs')    { if(currentRole==='admin'){ renderLogsPage();    setDropdownActive('dd-logs');     } else showPage('dashboard'); }
 }
@@ -2214,9 +2490,12 @@ function getCurrentFiscalYear(){
 
 function renderDashboard(){
   const txs=DATA.transactions;
-  const totalPaid=txs.reduce((s,t)=>s+(t.total_paid||0),0);
-  const totalUnpaid=txs.reduce((s,t)=>s+(t.remaining||0),0);
-  const withRem=txs.filter(t=>(t.remaining||0)>0).length;
+  const activeTxs=txs.filter(t=>t.status!=='written_off');
+  const writtenOffTxs=txs.filter(t=>t.status==='written_off');
+  const totalPaid=activeTxs.reduce((s,t)=>s+(t.total_paid||0),0);
+  const totalUnpaid=activeTxs.reduce((s,t)=>s+(t.remaining||0),0);
+  const totalBadDebt=writtenOffTxs.reduce((s,t)=>s+(t.writeOff?.amount||t.remaining||0),0);
+  const withRem=activeTxs.filter(t=>(t.remaining||0)>0).length;
 
   // رأس المال — من آخر سنة في sh_details
   const lastShd=SH_DETAILS_DATA[SH_DETAILS_DATA.length-1]||{};
@@ -2233,9 +2512,14 @@ function renderDashboard(){
   const displayProfit=lastYearly.net_profit||lastYearly.profits||0;
   const displayYear=lastYearly.year||'—';
 
+  // موجود الصندوق = رأس المال + صافي الأرباح - إجمالي المتبقي من جميع السنوات
+  const fundBalance = parseFloat((capital + displayProfit - totalUnpaid).toFixed(2));
+  const fundColor = fundBalance >= 0 ? 'var(--green)' : 'var(--red)';
+
   document.getElementById('stats-grid').innerHTML=`
     <div class="stat-card"><div class="stat-icon purple">📋</div><div><div class="stat-num">${txs.length}</div><div class="stat-label">إجمالي المعاملات</div></div></div>
     <div class="stat-card"><div class="stat-icon green">💰</div><div><div class="stat-num">${fmt(totalPaid)}</div><div class="stat-label">إجمالي المدفوع (د.ا)</div></div></div>
+    ${totalBadDebt>0?`<div class="stat-card" style="border-color:var(--red)"><div class="stat-icon" style="background:rgba(231,76,60,.15)">🔴</div><div><div class="stat-num" style="color:var(--red)">${fmt(totalBadDebt)}</div><div class="stat-label">ديون معدومة (د.ا)</div></div></div>`:''}
     <div class="stat-card"><div class="stat-icon orange">⏳</div><div><div class="stat-num">${fmt(totalUnpaid)}</div><div class="stat-label">إجمالي غير المدفوع (د.ا)</div></div></div>
     <div class="stat-card"><div class="stat-icon gold">🏦</div><div>
       <div class="stat-num">${fmt(capital)}</div>
@@ -2247,9 +2531,18 @@ function renderDashboard(){
       <div class="stat-label">صافي أرباح (${displayYear})</div>
       <div class="stat-sub">بعد المصاريف — قبل التوزيع</div>
     </div></div>
+    <div class="stat-card" style="border-color:${fundColor};cursor:pointer" onclick="showFundBreakdownDash(${capital},${displayProfit},${totalUnpaid},${fundBalance})">
+      <div class="stat-icon" style="background:rgba(67,217,140,.15)">🏛️</div>
+      <div>
+        <div class="stat-num" style="color:${fundColor}">${fmt(fundBalance)}</div>
+        <div class="stat-label">موجود الصندوق (د.ا)</div>
+        <div class="stat-sub" style="color:var(--accent)">اضغط للتفاصيل ⓘ</div>
+      </div>
+    </div>
     <div class="stat-card"><div class="stat-icon red">⚠️</div><div><div class="stat-num">${withRem}</div><div class="stat-label">معاملات بمتبقيات</div></div></div>
   `;
   document.getElementById('dash-yearly').innerHTML=DATA.yearly.slice(-3).map(y=>renderYearCard(y)).join('');
+  renderRecentPayments(); // async — loads from receipts collection
   document.getElementById('recent-tbody').innerHTML=DATA.transactions.slice(-10).reverse().map(t=>{
     const s=txStatus(t);
     return`<tr onclick="openModal('${t.docId}')"><td>${t.id}</td><td><div class="buyer-name">${t.buyer_name||'—'}</div></td><td><div class="item-name">${t.item||'—'}</div></td><td>${fmt(t.purchase_price)}</td><td><span style="color:var(--green);font-weight:600">${fmt(t.total_paid)}</span></td><td><span class="badge ${s.cls}">${s.label}</span></td></tr>`;
@@ -2260,21 +2553,58 @@ function renderDashboard(){
 // YEARLY
 // ============================================================
 function renderYearCard(y){
-  const membersHtml=(y.members||[]).length>0?`
+  // حساب غير المحصل لحظياً من المعاملات (للسنة الجارية فقط)
+  const liveUncollected = !y.closed
+    ? DATA.transactions
+        .filter(t => String(t.fiscal_year) === String(y.year) && t.status !== 'written_off')
+        .reduce((s,t) => s + (t.remaining||0), 0)
+    : (y.uncollected||0);
+
+  // إجمالي المتبقي من جميع السنوات (لموجود الصندوق)
+  const allUncollected = DATA.transactions
+    .filter(t => t.status !== 'written_off')
+    .reduce((s,t) => s + (t.remaining||0), 0);
+
+  // جدول المساهمين — يظهر فقط بعد الإغلاق الرسمي
+  const membersHtml = y.closed && (y.members||[]).length > 0 ? `
     <div class="year-divider"></div>
-    <div style="font-size:12px;color:var(--text2);margin-bottom:8px">توزيع الأرباح — ${fmt(y.profit_per_share||0)} د.ا/سهم${y.distribution_date?' ('+y.distribution_date+')':''}</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:8px">
+      توزيع الأرباح — ${fmt(y.profit_per_share||0)} د.ا/سهم
+      ${y.distribution_date?' ('+y.distribution_date+')':''}
+    </div>
     <table style="width:100%;border-collapse:collapse;font-size:12px">
-      <thead><tr style="color:var(--text2)"><th style="text-align:right;padding:3px 6px">المساهم</th><th style="text-align:center;padding:3px">أسهم</th><th style="text-align:center;padding:3px">النصيب</th><th style="text-align:center;padding:3px">المدفوع</th><th style="text-align:center;padding:3px">محتجز</th></tr></thead>
+      <thead><tr style="color:var(--text2)">
+        <th style="text-align:right;padding:3px 6px">المساهم</th>
+        <th style="text-align:center;padding:3px">أسهم</th>
+        <th style="text-align:center;padding:3px">النصيب</th>
+        <th style="text-align:center;padding:3px">المدفوع</th>
+        <th style="text-align:center;padding:3px">محتجز</th>
+      </tr></thead>
       <tbody>${(y.members||[]).map(m=>`<tr style="border-top:1px solid var(--border)">
         <td style="padding:3px 6px;color:var(--text1)">${m.name}</td>
         <td style="text-align:center;padding:3px;color:var(--gold)">${m.shares}</td>
-        <td style="text-align:center;padding:3px;color:var(--green)">${fmt(m.total)}</td>
-        <td style="text-align:center;padding:3px">${fmt(m.paid)}</td>
+        <td style="text-align:center;padding:3px;color:var(--green)">${fmt(m.profit||m.total||0)}</td>
+        <td style="text-align:center;padding:3px">${fmt(m.paid||0)}</td>
         <td style="text-align:center;padding:3px;color:${(m.reserved||0)>0?'var(--orange)':'var(--text2)'}">${fmt(m.reserved||0)}</td>
       </tr>`).join('')}</tbody>
-    </table>`:'';
-  return`<div class="year-card">
-    <div class="year-header"><div class="year-label">${y.year}</div><div class="year-badge">${y.label||'سنة'}</div></div>
+    </table>` : '';
+
+  // رسالة انتظار الإغلاق للسنة الحالية
+  const pendingHtml = !y.closed ? `
+    <div style="margin-top:12px;padding:10px 14px;background:rgba(108,99,255,.06);border:1px dashed rgba(108,99,255,.25);border-radius:8px;font-size:12px;color:var(--text2);text-align:center">
+      ⏳ بانتظار إغلاق السنة المالية لعرض توزيع الأرباح
+    </div>` : '';
+
+  return`<div class="year-card" style="${y.closed?'border:2px solid #1E3A5F;':''}">
+    <div class="year-header">
+      <div class="year-label">${y.year}</div>
+      <div style="display:flex;gap:6px;align-items:center">
+        ${y.closed
+          ? `<span style="font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(30,58,95,.15);color:#1E3A5F;font-weight:600">🔒 مغلقة</span>`
+          : `<span style="font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(108,99,255,.12);color:var(--accent);font-weight:600">🔓 جارية</span>`}
+        <div class="year-badge">${y.label||'سنة'}</div>
+      </div>
+    </div>
     <div class="year-rows">
       <div class="year-row"><span class="year-row-label">رأس المال</span><span class="year-row-val gold">${fmt(y.capital||0)} د.ا</span></div>
       <div class="year-row"><span class="year-row-label">عدد العمليات</span><span class="year-row-val">${y.num_sales||0}</span></div>
@@ -2282,12 +2612,16 @@ function renderYearCard(y){
       <div class="year-row"><span class="year-row-label">المبيعات + الأرباح</span><span class="year-row-val">${fmt(y.sales_with_profit||0)} د.ا</span></div>
       <div class="year-row"><span class="year-row-label">إجمالي الأرباح</span><span class="year-row-val green">+${fmt(y.total_profit||0)} د.ا</span></div>
       <div class="year-row"><span class="year-row-label">المصاريف</span><span class="year-row-val red">-${fmt((y.expenses||0)+(y.founding_exp||0)+(y.legal_fees||0))} د.ا</span></div>
-      <div class="year-row"><span class="year-row-label">صافي الأرباح</span><span class="year-row-val green" style="font-weight:700">+${fmt(y.net_profit||0)} د.ا</span></div>
-      ${(y.uncollected||0)>0?`<div class="year-row"><span class="year-row-label">غير محصل</span><span class="year-row-val orange">${fmt(y.uncollected)} د.ا</span></div>`:''}
-      <div class="year-row"><span class="year-row-label">الأرباح الموزعة</span><span class="year-row-val green">${fmt(y.distributed||0)} د.ا</span></div>
-      ${(y.reserved||0)>0?`<div class="year-row"><span class="year-row-label">محتجز (تحوط)</span><span class="year-row-val orange">${fmt(y.reserved)} د.ا</span></div>`:''}
+      ${y.write_off_expense>0?`<div class="year-row"><span class="year-row-label">ديون معدومة</span><span class="year-row-val red">-${fmt(y.write_off_expense)} د.ا</span></div>`:''}
+      <div class="year-row"><span class="year-row-label">صافي الأرباح</span><span class="year-row-val green" style="font-weight:700">+${fmt(y.net_profit||y.profits||0)} د.ا</span></div>
+      ${liveUncollected>0?`<div class="year-row"><span class="year-row-label">غير محصل</span><span class="year-row-val orange">${fmt(liveUncollected)} د.ا</span></div>`:''}
+      ${y.closed
+        ? `<div class="year-row"><span class="year-row-label">الأرباح الموزعة</span><span class="year-row-val green" style="font-weight:700">${fmt(y.distributed||0)} د.ا</span></div>
+           ${(y.fund_balance||0)>0?`<div class="year-row"><span class="year-row-label">موجود الصندوق</span><span class="year-row-val" style="color:var(--accent)">${fmt(y.fund_balance)} د.ا</span></div>`:''}`
+        : `<div class="year-row"><span class="year-row-label">الأرباح الموزعة</span><span class="year-row-val" style="color:var(--text2)">— بانتظار الإغلاق</span></div>`}
     </div>
     ${membersHtml}
+    ${pendingHtml}
   </div>`;
 }
 function renderYearly(){document.getElementById('yearly-grid').innerHTML=DATA.yearly.map(y=>renderYearCard(y)).join('')}
@@ -2310,6 +2644,7 @@ function getFilteredTx(){
     if(txFilter==='active')mf=(t.total_paid||0)>0&&(t.remaining||0)>0;
     if(txFilter==='new')mf=(t.total_paid||0)===0&&(t.remaining||0)===0&&(t.first_payment||0)===0;
     if(txFilter==='pending')mf=(t.total_paid||0)===0;
+    if(txFilter==='written_off')mf=t.status==='written_off';
     return ms&&mf;
   });
 }
@@ -2318,6 +2653,7 @@ function renderTransactions(){
   const sumEl=document.getElementById('tx-summary');
   if(filtered.length>0){
     sumEl.style.display='flex';
+    const filteredActive = filtered.filter(t=>t.status!=='written_off');
     sumEl.innerHTML=`<div class="summary-item"><div class="summary-val" style="color:var(--accent)">${filtered.length}</div><div class="summary-label">معاملة</div></div><div class="summary-item"><div class="summary-val" style="color:var(--green)">${fmt(filtered.reduce((s,t)=>s+(t.total_paid||0),0))}</div><div class="summary-label">إجمالي المدفوع</div></div><div class="summary-item"><div class="summary-val" style="color:var(--orange)">${fmt(filtered.reduce((s,t)=>s+(t.remaining||0),0))}</div><div class="summary-label">إجمالي المتبقي</div></div>`;
   } else sumEl.style.display='none';
   const page=filtered.slice((pageNum-1)*PAGE_SIZE,pageNum*PAGE_SIZE);
@@ -2411,6 +2747,27 @@ function openModal(docId){
       </div>
       <div class="progress-bar" style="height:10px"><div class="progress-fill" style="width:${prog}%"></div></div>
     </div>
+    ${tx.status==='written_off'?`
+    <div style="background:rgba(231,76,60,.1);border:1px solid rgba(231,76,60,.3);border-radius:10px;padding:14px 16px;margin-bottom:16px">
+      <div style="font-weight:700;color:var(--red);margin-bottom:8px">🔴 هذه المعاملة مشطوبة — دين معدوم</div>
+      <div style="font-size:12px;color:var(--text2);display:grid;grid-template-columns:1fr 1fr;gap:6px">
+        <div>تاريخ الشطب: <strong>${tx.writeOff?.date||'—'}</strong></div>
+        <div>المبلغ المشطوب: <strong style="color:var(--red)">${fmt(tx.writeOff?.amount||0)} د.ا</strong></div>
+        <div>السبب: <strong>${tx.writeOff?.reason||'—'}</strong></div>
+        <div>اعتمد من: <strong>${tx.writeOff?.approvedBy||'—'}</strong></div>
+        ${tx.writeOff?.notes?`<div style="grid-column:1/-1">ملاحظات: <strong>${tx.writeOff.notes}</strong></div>`:''}
+        <div style="grid-column:1/-1;margin-top:4px">رقم القيد: <strong style="font-family:monospace;color:var(--accent)">${tx.writeOff?.entryRef||'—'}</strong></div>
+        ${tx.writeOff?.deductedFromYear?`
+        <div style="grid-column:1/-1;margin-top:8px;padding-top:8px;border-top:1px solid rgba(231,76,60,.2)">
+          <div style="color:var(--text2);margin-bottom:4px">📊 تأثير على الأرباح:</div>
+          <div style="display:flex;gap:12px;font-size:12px">
+            <span>السنة المخصوم منها: <strong>${tx.writeOff.deductedFromYear}</strong></span>
+            <span>قبل الشطب: <strong>${fmt(tx.writeOff.profitBeforeWriteOff||0)} د.ا</strong></span>
+            <span>بعد الشطب: <strong style="color:var(--red)">${fmt(tx.writeOff.profitAfterWriteOff||0)} د.ا</strong></span>
+          </div>
+        </div>`:''}
+      </div>
+    </div>`:''}
     ${buildInstallmentStatement(tx)}
     ${buildDocumentsSection(tx, docId)}
     <div style="text-align:center;display:flex;gap:10px;justify-content:center;margin-top:20px">
@@ -2421,6 +2778,7 @@ function openModal(docId){
         : `<button class="btn btn-success" style="padding:10px 24px;font-size:14px" onclick="closeModal();openPayModal('${docId}')">💳 تسجيل دفعة</button>`
       }
       <button class="btn btn-outline" style="padding:10px 18px;font-size:14px;border-color:var(--gold);color:var(--gold)" onclick="showTxReceipt('${docId}')">🧾 سند الدفع</button>
+      ${(tx.status!=='written_off'&&(tx.remaining||0)>0&&currentRole==='admin')?`<button class="btn btn-danger" style="padding:10px 18px;font-size:14px;border-color:var(--red);background:rgba(231,76,60,.1)" onclick="openWriteOffModal('${docId}')">🔴 شطب</button>`:''}
       <button class="btn btn-danger" style="padding:10px 18px;font-size:14px" onclick="closeModal();deleteTx('${docId}')">🗑 حذف</button>
     </div>
   `;
@@ -2474,6 +2832,13 @@ async function savePayment(){
   const instNum = ia>0 ? Math.round((prevPaid+amount)/ia) : '—';
   tx.total_paid=parseFloat(((prevPaid)+amount).toFixed(2));
   tx.remaining=parseFloat(Math.max(0,(tx.remaining||0)-amount).toFixed(2));
+  tx.last_payment_date   = date;
+  tx.last_payment_amount = amount;
+
+  // حفظ تاريخ الدفع لكل قسط
+  if (!tx.payment_dates) tx.payment_dates = {};
+  tx.payment_dates[String(instNum)] = { date, amount };
+
   closePayModal();
   await saveTxToFirebase(tx);
   if(currentPage==='transactions')renderTransactions();
@@ -2986,11 +3351,18 @@ function autoFillYearly(){
   const txs=DATA.transactions.filter(t=>t.fiscal_year===fy);
 
   // رأس المال من sh_details
-  const shd=SH_DETAILS_DATA.find(d=>{
-    const yr=fy.split('/')[0];
-    return d.year===yr||d.year===fy.split('/')[1];
-  })||SH_DETAILS_DATA.find(d=>fy.startsWith(d.year))||{};
-  const capital=(shd.members||[]).reduce((s,m)=>s+m.shares*(shd.pricePerShare||100),0)||shd.capital||0;
+  // السنة المالية 2025/2026 = رأس المال في year:'2026' (نهاية السنة)
+  const fyEnd = fy.split('/')[1];   // "2026"
+  const fyStart = fy.split('/')[0]; // "2025"
+
+  // أولاً نبحث بسنة النهاية (الأصح لرأس المال)
+  let shd = SH_DETAILS_DATA.find(d => String(d.year) === String(fyEnd));
+  // إذا لم نجد نبحث بسنة البداية
+  if (!shd) shd = SH_DETAILS_DATA.find(d => String(d.year) === String(fyStart));
+  if (!shd) shd = {};
+
+  const capital = shd.capital ||
+    (shd.members||[]).reduce((s,m) => s + Number(m.shares||0) * (shd.pricePerShare||100), 0) || 0;
 
   // المصاريف = مجموع expenses + legal_fees من المعاملات (مصاريف الشراء)
   const expenses=txs.reduce((s,t)=>s+(t.expenses||0)+(t.legal_fees||0),0);
@@ -3006,8 +3378,20 @@ function autoFillYearly(){
   const uncollected=txs.reduce((s,t)=>s+(t.remaining||0),0);
   // الموزعة = صافي الأرباح (افتراضي)
   const distributed=netProfit;
-  // موجود الصندوق
-  const fund=parseFloat((totalProfit-expenses-distributed).toFixed(2));
+  // موجود الصندوق = رأس المال + صافي الأرباح - إجمالي المتبقي من جميع السنوات
+  const allUncollected = DATA.transactions
+    .filter(t => t.status !== 'written_off')
+    .reduce((s,t) => s + (t.remaining||0), 0);
+  const fund = parseFloat((capital + netProfit - allUncollected).toFixed(2));
+
+  // تفصيل المتبقي لكل سنة (للتنبيه)
+  const uncollectedBySeason = {};
+  DATA.transactions.filter(t => t.status !== 'written_off' && (t.remaining||0) > 0).forEach(t => {
+    const fy = t.fiscal_year || '—';
+    if (!uncollectedBySeason[fy]) uncollectedBySeason[fy] = 0;
+    uncollectedBySeason[fy] += t.remaining||0;
+  });
+  window._fundBreakdown = { capital, netProfit, allUncollected, uncollectedBySeason, fund };
   // حصة السهم
   const totalShares=(shd.members||[]).reduce((s,m)=>s+m.shares,0)||1;
   const pps=parseFloat((distributed/totalShares).toFixed(4));
@@ -3020,7 +3404,7 @@ function autoFillYearly(){
   document.getElementById('y-total-profit').value=parseFloat(totalProfit.toFixed(2));
   document.getElementById('y-expenses').value=parseFloat(expenses.toFixed(2));
   document.getElementById('y-net-profit').value=netProfit;
-  document.getElementById('y-uncollected').value=parseFloat(uncollected.toFixed(2));
+  document.getElementById('y-uncollected').value=parseFloat(allUncollected.toFixed(2));
   document.getElementById('y-dist').value=parseFloat(distributed.toFixed(2));
   document.getElementById('y-fund').value=parseFloat(Math.max(0,fund).toFixed(2));
   document.getElementById('y-pps').value=pps;
@@ -3120,15 +3504,16 @@ function generateReport(){
     const clientBadge=closed
       ?`<span class="badge badge-green">🔒 مغلق</span>`
       :`<span class="badge badge-orange">🔓 نشط</span>`;
+    const lastPayDate = r.tx.last_payment_date || r.tx.purchase_date || '—';
     return`<tr>
     <td style="color:var(--text2)">${i+1}</td>
     <td><span style="font-family:monospace;font-size:10px;color:var(--accent)">${r.tx.client_id||'—'}</span></td>
     <td><div class="buyer-name">${r.tx.buyer_name||'—'}</div></td>
     <td><div class="item-name">${r.tx.item||'—'}</div></td>
-    <td>${r.tx.purchase_date||'—'}</td>
+    <td style="color:var(--accent)">${lastPayDate}</td>
     <td><span style="color:var(--green);font-weight:600">${fmt(r.tx.total_paid)} د.ا</span></td>
-    <td><span style="color:var(--orange);font-weight:600">${fmt(r.tx.remaining)} د.ا</span></td>
-    <td><span class="badge ${txStatus(r.tx).cls}">${r.cs}</span></td>
+    <td><span style="color:${closed?'var(--green)':'var(--orange)'};font-weight:600">${fmt(r.tx.remaining)} د.ا</span></td>
+    <td><span class="badge ${txStatus(r.tx).cls}">${txStatus(r.tx).label}</span></td>
     <td>${clientBadge}</td>
   </tr>`;}).join('');
 }
@@ -3501,10 +3886,28 @@ function buildInstallmentStatement(tx){
       statusBadge='<span class="badge badge-gray">○ معلق</span>';
       amountColor='var(--text2)';
     }
+    // تاريخ الدفع الفعلي من payment_dates أو last_payment_date للقسط الأخير
+    const paymentDates = tx.payment_dates || {};
+    let payDateDisplay;
+    if (r.isPaid) {
+      const savedDate = paymentDates[String(r.num)]?.date;
+      if (savedDate) {
+        payDateDisplay = `<span style="color:var(--green);font-size:11px">✓ ${savedDate}</span>`;
+      } else if (r.num === paidCount && tx.last_payment_date) {
+        payDateDisplay = `<span style="color:var(--green);font-size:11px">✓ ${tx.last_payment_date}</span>`;
+      } else {
+        payDateDisplay = `<span style="color:var(--text2);font-size:11px">—</span>`;
+      }
+    } else {
+      payDateDisplay = `<span style="color:var(--text2);font-size:11px">—</span>`;
+    }
+    // المبلغ الفعلي المدفوع من payment_dates أو قيمة القسط
+    const actualAmount = paymentDates[String(r.num)]?.amount || r.amount;
     return `<tr style="${r.isPaid?'opacity:.75':''}">
       <td style="color:var(--text2);font-size:12px">${r.num}</td>
       <td style="font-size:12px;color:var(--text2)">${r.date}</td>
-      <td style="text-align:center;color:${amountColor};font-weight:600">${fmt(r.amount)} د.ا</td>
+      <td style="text-align:center;color:${amountColor};font-weight:600">${fmt(actualAmount)} د.ا</td>
+      <td style="text-align:center;font-size:12px">${payDateDisplay}</td>
       <td style="text-align:center">${statusBadge}</td>
     </tr>`;
   }).join('');
@@ -3527,11 +3930,12 @@ function buildInstallmentStatement(tx){
         <thead><tr>
           <th>#</th><th>تاريخ الاستحقاق</th>
           <th style="text-align:center">المبلغ</th>
+          <th style="text-align:center">تاريخ الدفعة</th>
           <th style="text-align:center">الحالة</th>
         </tr></thead>
         <tbody>${rowsHtml}</tbody>
         <tfoot><tr style="background:var(--surface2);font-weight:700;font-size:13px">
-          <td colspan="2" style="padding:10px 12px;color:var(--text2)">المجموع (${paidCount}/${ni} قسط)</td>
+          <td colspan="3" style="padding:10px 12px;color:var(--text2)">المجموع (${paidCount}/${ni} قسط)</td>
           <td style="text-align:center;padding:10px 12px;color:var(--green)">${fmt(totalPaid)} / ${fmt(fp+totalInstAmount)} د.ا</td>
           <td style="text-align:center;padding:10px 12px;color:${rem>0?'var(--red)':'var(--green)'}">
             ${rem>0?'متبقي '+fmt(rem)+' د.ا':'✓ مكتمل'}
@@ -3553,6 +3957,8 @@ const ACTION_LABELS = {
   LOGOUT:       { label:'تسجيل خروج',     color:'var(--text2)',   icon:'🔒' },
   DOC_UPLOAD:   { label:'رفع وثيقة',       color:'var(--gold)',    icon:'📎' },
   DOC_DELETE:   { label:'حذف وثيقة',       color:'var(--red)',     icon:'🗑' },
+  WRITE_OFF:    { label:'شطب دين معدوم',    color:'var(--red)',     icon:'🔴' },
+  YEAR_CLOSE:   { label:'إغلاق سنة مالية',   color:'#1E3A5F',        icon:'🔒' },
 };
 
 async function writeAuditLog(action, targetUser, details) {
@@ -3963,7 +4369,7 @@ function removePendingDoc(docType, el) {
 // سند الدفع — Payment Receipt
 // ============================================================
 async function printPaymentReceipt(tx, amount, date, instNum) {
-  const receiptNo = await getNextReceiptNo(tx);
+  const receiptNo = await getNextReceiptNo(tx, amount, date);
   const newRemaining = tx.remaining || 0;
   const newPaid = tx.total_paid || 0;
   const totalSale = tx.sale_price || 0;
@@ -4039,7 +4445,7 @@ async function printPaymentReceipt(tx, amount, date, instNum) {
     <div class="receipt-badge">
       <div class="label">سند قبض رقم</div>
       <div class="rno">${receiptNo}</div>
-      <div style="font-size:11px;opacity:.75;margin-top:4px">${printDate}</div>
+      <div style="font-size:11px;opacity:.75;margin-top:4px">تاريخ الدفعة: ${printDate}</div>
 
   <div class="body">
 
@@ -4056,10 +4462,7 @@ async function printPaymentReceipt(tx, amount, date, instNum) {
         <div class="info-label">اسم العميل</div>
         <div class="info-val">${tx.buyer_name||'—'}</div>
       </div>
-      <div class="info-item">
-        <div class="info-label">رقم العميل</div>
-        <div class="info-val" style="font-family:monospace;color:#6C63FF">${tx.client_id||'—'}</div>
-      </div>
+
       <div class="info-item">
         <div class="info-label">المادة المشتراة</div>
         <div class="info-val">${tx.item||'—'}</div>
@@ -4072,10 +4475,7 @@ async function printPaymentReceipt(tx, amount, date, instNum) {
         <div class="info-label">رقم القسط</div>
         <div class="info-val">${paidInstCount} / ${ni||'—'}</div>
       </div>
-      <div class="info-item">
-        <div class="info-label">تاريخ هذه الدفعة</div>
-        <div class="info-val">${printDate}</div>
-      </div>
+
     </div>
 
     <!-- المبالغ -->
@@ -4117,7 +4517,7 @@ async function printPaymentReceipt(tx, amount, date, instNum) {
   <div class="footer">
     <div class="footer-left">
       <div>طُبع بتاريخ: ${todayStr}</div>
-      <div>بواسطة: ${currentUser?.email||'النظام'}</div>
+      <div>بواسطة: ${getUserLabel()}</div>
     </div>
     <div style="text-align:center">
       <div class="sig-box" style="min-width:160px;min-height:40px"></div>
@@ -4140,18 +4540,19 @@ async function printPaymentReceipt(tx, amount, date, instNum) {
 async function showTxReceipt(docId) {
   const tx = DATA.transactions.find(t => t.docId === docId);
   if (!tx) return;
-  const amount = tx.total_paid || 0;
-  const date   = tx.purchase_date || new Date().toISOString().split('T')[0];
+  // مبلغ آخر دفعة وليس الإجمالي
+  const amount = tx.last_payment_amount || tx.installment_amount || tx.total_paid || 0;
+  const date   = tx.last_payment_date || tx.purchase_date || new Date().toISOString().split('T')[0];
   const ia = tx.installment_amount || 0;
   const ni = tx.num_installments || 0;
-  const paidInstCount = ia > 0 ? Math.min(Math.floor(amount / ia), ni) : '—';
+  const paidInstCount = ia > 0 ? Math.min(Math.floor((tx.total_paid||0) / ia), ni) : '—';
   await printPaymentReceipt(tx, amount, date, paidInstCount);
 }
 
 // ============================================================
 // أرقام سندات القبض — Firestore Counter
 // ============================================================
-async function getNextReceiptNo(tx) {
+async function getNextReceiptNo(tx, amount, date) {
   try {
     const counterRef = db.collection('app_settings').doc('receipt_counter');
     // Firestore transaction to get atomic sequential number
@@ -4192,8 +4593,10 @@ async function getNextReceiptNo(tx) {
     return receiptNo;
   } catch (err) {
     console.error('Receipt counter error:', err);
-    // Fallback if Firestore fails
-    return `RCP-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`;
+    // Fallback if Firestore fails — use timestamp-based but consistent
+    const fbYear = new Date().getFullYear();
+    const fbNum  = String(Math.floor(Date.now()/1000) % 999999).padStart(6,'0');
+    return `RCP-${fbYear}-${fbNum}`;
   }
 }
 
@@ -4243,6 +4646,7 @@ async function renderSettingsPage() {
   try {
     const bDoc = await db.collection('app_settings').doc('branding').get();
     const b = bDoc.exists ? bDoc.data() : {};
+    document.getElementById('s-display-name').value = currentDisplayName || '';
     document.getElementById('s-sys-name').value = b.sysName || '';
     document.getElementById('s-sys-sub').value  = b.sysSub  || '';
     if (b.logoUrl) {
@@ -4332,6 +4736,12 @@ async function saveBranding() {
       logoUrl = null;
     }
 
+    const newDisplayName = document.getElementById('s-display-name')?.value.trim() || currentDisplayName;
+    if (newDisplayName && currentUser) {
+      await db.collection('users').doc(currentUser.uid).update({ displayName: newDisplayName });
+      currentDisplayName = newDisplayName;
+      document.getElementById('user-name-display').textContent = newDisplayName;
+    }
     await db.collection('app_settings').doc('branding').set(
       { sysName: name, sysSub: sub, logoUrl, updatedBy: currentUser?.email, updatedAt: firebase.firestore.FieldValue.serverTimestamp() },
       { merge: true }
@@ -4467,6 +4877,1137 @@ function setDropdownActive(id) {
   // Keep dropdown button highlighted
   const btn = document.getElementById('btn-settings-dropdown');
   if (btn) btn.classList.add('active');
+}
+
+// ── كشف حالة الاتصال بالإنترنت ──────────────────────────────
+function updateOnlineStatus() {
+  const banner = document.getElementById('offline-banner');
+  if (!banner) return;
+  if (!navigator.onLine) {
+    banner.classList.add('show');
+    setDbStatus('disconnected', '📡 وضع offline — البيانات محفوظة محلياً');
+  } else {
+    banner.classList.remove('show');
+  }
+}
+
+window.addEventListener('online',  () => {
+  updateOnlineStatus();
+  showToast('✅ عاد الاتصال بالإنترنت — جاري المزامنة...');
+  setDbStatus('connected', 'متصل');
+});
+
+window.addEventListener('offline', () => {
+  updateOnlineStatus();
+  showToast('📡 انقطع الإنترنت — تعمل على البيانات المحفوظة');
+});
+
+// Check on startup
+document.addEventListener('DOMContentLoaded', updateOnlineStatus);
+
+// ============================================================
+// WRITE-OFF ENGINE — الديون المعدومة (Direct Write-off Method)
+// ============================================================
+let writeOffTxId = null;
+
+function openWriteOffModal(docId) {
+  const tx = DATA.transactions.find(t => t.docId === docId);
+  if (!tx) return;
+  if (tx.status === 'written_off') { showToast('⚠️ هذه المعاملة مشطوبة مسبقاً'); return; }
+  if ((tx.remaining||0) <= 0) { showToast('⚠️ لا يوجد مبلغ متبقي لشطبه'); return; }
+
+  writeOffTxId = docId;
+  document.getElementById('writeoff-subtitle').textContent =
+    `${tx.buyer_name||'—'} — متبقي: ${fmt(tx.remaining||0)} د.ا`;
+  document.getElementById('writeoff-summary').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px">
+      <div style="color:var(--text2)">العميل</div><div style="font-weight:600">${tx.buyer_name||'—'}</div>
+      <div style="color:var(--text2)">رقم العميل</div><div style="font-family:monospace;color:var(--accent)">${tx.client_id||'—'}</div>
+      <div style="color:var(--text2)">المادة</div><div>${tx.item||'—'}</div>
+      <div style="color:var(--text2)">سعر البيع</div><div>${fmt(tx.sale_price||0)} د.ا</div>
+      <div style="color:var(--text2)">إجمالي المدفوع</div><div style="color:var(--green);font-weight:600">${fmt(tx.total_paid||0)} د.ا</div>
+      <div style="color:var(--text2)">المبلغ المشطوب</div><div style="color:var(--red);font-weight:700;font-size:15px">${fmt(tx.remaining||0)} د.ا</div>
+    </div>
+    <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-size:12px;color:var(--text2)">
+      📋 القيد المحاسبي:<br>
+      <span style="font-family:monospace">من ح/ مصروف الديون المعدومة &nbsp;&nbsp; ${fmt(tx.remaining||0)} د.ا<br>
+      &nbsp;&nbsp;&nbsp;إلى ح/ المدينين (${tx.buyer_name||'—'}) &nbsp; ${fmt(tx.remaining||0)} د.ا</span>
+    </div>`;
+  document.getElementById('writeoff-reason').value = '';
+  document.getElementById('writeoff-notes').value = '';
+  document.getElementById('writeoff-confirm-input').value = '';
+  document.getElementById('writeoff-overlay').classList.add('open');
+}
+
+function closeWriteOffModal() {
+  writeOffTxId = null;
+  document.getElementById('writeoff-overlay').classList.remove('open');
+}
+
+async function confirmWriteOff() {
+  const confirmText = document.getElementById('writeoff-confirm-input').value.trim();
+  const reason      = document.getElementById('writeoff-reason').value;
+  const notes       = document.getElementById('writeoff-notes').value.trim();
+
+  if (!reason) { showToast('❌ يجب اختيار سبب الشطب'); return; }
+  if (confirmText !== 'شطب') { showToast('❌ يجب كتابة كلمة "شطب" للتأكيد'); return; }
+
+  const tx = DATA.transactions.find(t => t.docId === writeOffTxId);
+  if (!tx) return;
+
+  const btn = document.getElementById('writeoff-confirm-btn');
+  btn.disabled = true; btn.textContent = '⏳ جاري الشطب...';
+
+  try {
+    const writeOffDate  = new Date().toISOString().split('T')[0];
+    const writeOffAmount = tx.remaining || 0;
+    const entryRef = `WO-${tx.client_id||'000'}-${Date.now().toString().slice(-6)}`;
+
+    // ── تحديث المعاملة ──
+    tx.status = 'written_off';
+    tx.writeOff = {
+      date:       writeOffDate,
+      reason,
+      notes,
+      amount:     writeOffAmount,
+      approvedBy: currentUser?.email || '—',
+      entryRef,
+    };
+
+    const { docId, ...data } = tx;
+    await db.collection('transactions').doc(docId).update({
+      status:   'written_off',
+      writeOff: tx.writeOff,
+    });
+
+    // ── حفظ القيد المحاسبي في bad_debt_entries ──
+    await db.collection('bad_debt_entries').add({
+      entryRef,
+      txDocId:     docId,
+      clientId:    tx.client_id    || '—',
+      buyerName:   tx.buyer_name   || '—',
+      item:        tx.item         || '—',
+      fiscalYear:  tx.fiscal_year  || '—',
+      salePrice:   tx.sale_price   || 0,
+      totalPaid:   tx.total_paid   || 0,
+      writeOffAmount,
+      reason,
+      notes,
+      approvedBy:  currentUser?.email || '—',
+      approvedAt:  firebase.firestore.FieldValue.serverTimestamp(),
+      entryType:   'DIRECT_WRITE_OFF',
+      debit:  'مصروف الديون المعدومة',
+      credit: `المدينون — ${tx.buyer_name||'—'}`,
+    });
+
+    // ── خصم من أرباح السنة المالية الحالية ──
+    const currentFY = getCurrentFiscalYear();
+    const yearEntry = DATA.yearly.find(y => String(y.year) === String(currentFY))
+                   || DATA.yearly[DATA.yearly.length - 1]; // آخر سنة مالية إن لم توجد الحالية
+
+    if (yearEntry && yearEntry.docId) {
+      const oldProfit      = yearEntry.total_profit || 0;
+      const oldBadDebt     = yearEntry.write_off_expense || 0;
+      const newProfit      = Math.max(0, oldProfit - writeOffAmount);
+      const newBadDebt     = oldBadDebt + writeOffAmount;
+
+      yearEntry.total_profit      = newProfit;
+      yearEntry.write_off_expense = newBadDebt;
+
+      await db.collection('yearly').doc(yearEntry.docId).update({
+        total_profit:      newProfit,
+        write_off_expense: newBadDebt,
+      });
+
+      tx.writeOff.deductedFromYear   = yearEntry.year || currentFY;
+      tx.writeOff.profitBeforeWriteOff = oldProfit;
+      tx.writeOff.profitAfterWriteOff  = newProfit;
+
+      // تحديث writeOff في Firestore بمعلومات الأرباح
+      await db.collection('transactions').doc(docId).update({
+        'writeOff.deductedFromYear':    yearEntry.year || currentFY,
+        'writeOff.profitBeforeWriteOff': oldProfit,
+        'writeOff.profitAfterWriteOff':  newProfit,
+      });
+    }
+
+    // ── سجل الأحداث ──
+    await writeAuditLog('WRITE_OFF',
+      tx.buyer_name || tx.client_id,
+      `شطب دين معدوم: ${fmt(writeOffAmount)} د.ا — السبب: ${reason} — المرجع: ${entryRef} — خُصم من أرباح سنة ${yearEntry?.year||currentFY}`
+    );
+
+    closeWriteOffModal();
+    closeModal();
+    renderTransactions();
+    renderDashboard();
+    showToast(`✅ تم شطب ${fmt(writeOffAmount)} د.ا من حساب ${tx.buyer_name||'—'} — المرجع: ${entryRef}`);
+
+  } catch(err) {
+    console.error(err);
+    showToast('❌ فشل الشطب: ' + err.message);
+    btn.disabled = false; btn.textContent = '🔴 تأكيد الشطب';
+  }
+}
+
+// ============================================================
+// YEAR CLOSE ENGINE — إغلاق السنة المالية
+// ============================================================
+let yearCloseData = null; // السنة المراد إغلاقها
+
+async function openYearClose(selectedYear) {
+  if (DATA.yearly.length === 0) { showToast('❌ لا توجد بيانات سنوية'); return; }
+
+  // Find the latest unclosed year — including years not yet in DATA.yearly
+  const sortedYears = [...DATA.yearly].sort((a,b) => String(a.year).localeCompare(String(b.year)));
+
+  // Build a dropdown for admin to choose which year to close
+  const unclosedYears = sortedYears.filter(y => !y.closed);
+
+  if (unclosedYears.length === 0) { showToast('✅ جميع السنوات مغلقة بالفعل'); return; }
+
+  // Show year selector if multiple unclosed years
+  if (unclosedYears.length > 1) {
+    const yearOptions = unclosedYears.map(y =>
+      `<option value="${y.year}">${y.year} — ${y.label||''}</option>`
+    ).join('');
+
+    const existing = document.getElementById('yearclose-year-select');
+    if (!existing) {
+      const sel = document.createElement('div');
+      sel.id = 'yearclose-year-selector';
+      sel.style.cssText = 'margin-bottom:16px';
+      sel.innerHTML = `<label style="font-size:13px;color:var(--text2);margin-bottom:6px;display:block">اختر السنة المالية للإغلاق</label>
+        <select id="yearclose-year-select" class="form-input" onchange="openYearClose(this.value)">
+          ${yearOptions}
+        </select>`;
+      document.querySelector('#yearclose-overlay .modal-body').prepend(sel);
+    } else {
+      existing.innerHTML = yearOptions;
+    }
+  }
+
+  // Get selected year or latest unclosed
+  const selectedYearStr = document.getElementById('yearclose-year-select')?.value;
+  const targetYear = selectedYearStr
+    ? unclosedYears.find(y => y.year === selectedYearStr) || unclosedYears[unclosedYears.length-1]
+    : unclosedYears[unclosedYears.length-1];
+
+  // Check if year exists in DATA.yearly
+  const yearInData = DATA.yearly.find(y => String(y.year) === String(targetYear.year));
+  if (!yearInData) {
+    document.getElementById('yearclose-missing-warn').style.display = 'block';
+    document.getElementById('yearclose-overlay').classList.add('open');
+    document.getElementById('yearclose-subtitle').textContent =
+      `السنة المالية ${targetYear.year} — يجب إضافة بياناتها أولاً`;
+    document.getElementById('yearclose-summary').innerHTML = '';
+    document.getElementById('yearclose-distribution').innerHTML = '';
+    document.getElementById('yearclose-btn').disabled = true;
+    return;
+  }
+  document.getElementById('yearclose-missing-warn').style.display = 'none';
+  document.getElementById('yearclose-btn').disabled = false;
+
+  yearCloseData = targetYear;
+
+  // Set default distribution date
+  document.getElementById('yearclose-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('yearclose-confirm').value = '';
+  document.getElementById('yearclose-notes').value = '';
+  document.getElementById('yearclose-subtitle').textContent =
+    `السنة المالية ${targetYear.year} — ${targetYear.label||''}`;
+
+  // ── احتساب الأرقام مباشرة من المعاملات (دقة 100%) ─────────────
+  const fy = targetYear.year;
+
+  // المعاملات النشطة للسنة
+  const fyTxs        = DATA.transactions.filter(t => String(t.fiscal_year) === String(fy) && t.status !== 'written_off');
+  // المعاملات المشطوبة للسنة
+  const fyWrittenOff = DATA.transactions.filter(t => String(t.fiscal_year) === String(fy) && t.status === 'written_off');
+
+  // ── أرقام من المعاملات مباشرة ──
+  const totalSales       = fyTxs.reduce((s,t) => s + (t.purchase_price||0), 0);
+  const totalSalesProfit = fyTxs.reduce((s,t) => s + (t.sale_price||0), 0);
+  const uncollected      = fyTxs.reduce((s,t) => s + (t.remaining||0), 0);
+  const collected        = fyTxs.reduce((s,t) => s + (t.total_paid||0), 0);
+
+  // ── الأرباح من المعاملات مباشرة ──
+  // إجمالي ربح الجمعية من كل معاملة (profit_to_assoc)
+  const grossProfitFromTx = fyTxs.reduce((s,t) => s + (t.profit_to_assoc||0), 0);
+
+  // ── المصاريف من yearly (لا يمكن حسابها من المعاملات) ──
+  const totalExpenses = (yearInData.expenses||0) + (yearInData.founding_exp||0) + (yearInData.legal_fees||0);
+
+  // ── الديون المعدومة من المعاملات مباشرة (أدق من yearly) ──
+  const totalBadDebt = fyWrittenOff.reduce((s,t) => s + (t.writeOff?.amount || t.remaining || 0), 0);
+
+  // ── صافي الربح = أرباح المعاملات - مصاريف - ديون معدومة ──
+  const grossProfit = parseFloat((grossProfitFromTx).toFixed(2));
+  const netProfit   = parseFloat((grossProfit - totalExpenses - totalBadDebt).toFixed(2));
+
+  // ── رأس المال من sh_details (سنة النهاية) ──
+  const fyEndYear = String(fy).split('/')[1];
+  const shdCapital = SH_DETAILS_DATA.find(d => String(d.year) === fyEndYear)
+                  || SH_DETAILS_DATA.find(d => String(d.year) === String(fy).split('/')[0])
+                  || {};
+  const capital = shdCapital.capital ||
+    (shdCapital.members||[]).reduce((s,m) => s+(Number(m.shares||0)*(shdCapital.pricePerShare||100)),0) || 0;
+
+  // ── موجود الصندوق ──
+  const allUncollected = DATA.transactions
+    .filter(t => t.status !== 'written_off')
+    .reduce((s,t) => s + (t.remaining||0), 0);
+  const fundBalance = parseFloat((capital + netProfit - allUncollected).toFixed(2));
+
+  // ── المساهمون من sh_details (سنة النهاية أولاً ثم البداية) ──
+  const shYear  = SH_DETAILS_DATA.find(d => String(d.year) === fyEndYear)
+               || SH_DETAILS_DATA.find(d => String(d.year) === String(fy).split('/')[0])
+               || {};
+  const members = shYear.members || [];
+  const totalShares    = members.reduce((s,m) => s + Number(m.shares||0), 0);
+  const profitPerShare = totalShares > 0 ? netProfit / totalShares : 0;
+
+  // ── عرض ملخص السنة ──────────────────────────────────────────
+  document.getElementById('yearclose-summary').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:13px">
+      <div style="background:var(--surface);border-radius:8px;padding:10px 14px">
+        <div style="color:var(--text2);font-size:11px;margin-bottom:4px">إجمالي المبيعات (سعر التكلفة)</div>
+        <div style="font-weight:700;color:var(--gold)">${fmt(totalSales)} د.ا</div>
+      </div>
+      <div style="background:var(--surface);border-radius:8px;padding:10px 14px">
+        <div style="color:var(--text2);font-size:11px;margin-bottom:4px">المبيعات + الأرباح</div>
+        <div style="font-weight:700;color:var(--green)">${fmt(targetYear.sales_with_profit||0)} د.ا</div>
+      </div>
+      <div style="background:var(--surface);border-radius:8px;padding:10px 14px">
+        <div style="color:var(--text2);font-size:11px;margin-bottom:4px">إجمالي الأرباح الخام</div>
+        <div style="font-weight:700;color:var(--green)">+${fmt(grossProfit)} د.ا</div>
+      </div>
+      <div style="background:var(--surface);border-radius:8px;padding:10px 14px">
+        <div style="color:var(--text2);font-size:11px;margin-bottom:4px">المصاريف الكلية</div>
+        <div style="font-weight:700;color:var(--red)">-${fmt(totalExpenses)} د.ا</div>
+      </div>
+      ${totalBadDebt>0?`<div style="background:var(--surface);border-radius:8px;padding:10px 14px">
+        <div style="color:var(--text2);font-size:11px;margin-bottom:4px">ديون معدومة مشطوبة (${fyWrittenOff.length} عملاء)</div>
+        <div style="font-weight:700;color:var(--red)">-${fmt(totalBadDebt)} د.ا</div>
+      </div>`:''}
+      <div style="background:var(--surface);border-radius:8px;padding:10px 14px">
+        <div style="color:var(--text2);font-size:11px;margin-bottom:4px">موجود الصندوق</div>
+        <div style="font-weight:700;color:var(--accent)">${fmt(fundBalance)} د.ا</div>
+        <div style="font-size:10px;color:var(--text2);margin-top:2px">${fmt(capital)} + ${fmt(netProfit)} - ${fmt(allUncollected)}</div>
+      </div>
+      <div style="background:rgba(108,99,255,.08);border:1px solid rgba(108,99,255,.25);border-radius:8px;padding:10px 14px;grid-column:1/-1">
+        <div style="color:var(--text2);font-size:11px;margin-bottom:4px">صافي الربح القابل للتوزيع (100%)</div>
+        <div style="font-weight:800;font-size:20px;color:var(--accent)">${fmt(netProfit)} د.ا</div>
+      </div>
+      ${uncollected>0?`<div style="background:rgba(251,133,0,.08);border:1px solid rgba(251,133,0,.2);border-radius:8px;padding:10px 14px;grid-column:1/-1">
+        <div style="color:var(--text2);font-size:11px;margin-bottom:4px">⚠️ مبالغ غير محصلة (تنتقل للسنة الجديدة)</div>
+        <div style="font-weight:700;color:var(--orange)">${fmt(uncollected)} د.ا من ${fyTxs.filter(t=>(t.remaining||0)>0).length} عميل</div>
+      </div>`:''}
+    </div>
+    <div style="margin-top:12px;padding:10px 14px;background:var(--surface);border-radius:8px;font-size:12px;font-family:monospace;color:var(--text2)">
+      📋 القيد المحاسبي:<br>
+      من ح/ أرباح الفترة &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ${fmt(netProfit)} د.ا<br>
+      &nbsp;&nbsp;&nbsp;إلى ح/ حقوق المساهمين &nbsp; ${fmt(netProfit)} د.ا
+    </div>`;
+
+  // ── جدول توزيع الأرباح ──────────────────────────────────────
+  if (members.length === 0) {
+    document.getElementById('yearclose-distribution').innerHTML =
+      '<div style="color:var(--red);font-size:13px">⚠️ لم يتم العثور على بيانات المساهمين لهذه السنة في تفاصيل الأسهم</div>';
+  } else {
+    const rows = members.map(m => {
+      const shares = Number(m.shares||0);
+      const share  = totalShares > 0 ? (shares / totalShares * 100).toFixed(1) : 0;
+      const amount = profitPerShare * shares;
+      return `<tr style="border-top:1px solid var(--border)">
+        <td style="padding:8px 10px;font-weight:500">${m.name}</td>
+        <td style="text-align:center;padding:8px;color:var(--gold)">${shares}</td>
+        <td style="text-align:center;padding:8px;color:var(--text2)">${share}%</td>
+        <td style="text-align:center;padding:8px;color:var(--green);font-weight:700">${fmt(amount)} د.ا</td>
+      </tr>`;
+    }).join('');
+
+    document.getElementById('yearclose-distribution').innerHTML = `
+      <div style="background:var(--surface2);border-radius:10px;overflow:hidden">
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead><tr style="background:var(--surface)">
+            <th style="text-align:right;padding:10px;color:var(--text2)">المساهم</th>
+            <th style="text-align:center;padding:10px;color:var(--text2)">الأسهم</th>
+            <th style="text-align:center;padding:10px;color:var(--text2)">النسبة</th>
+            <th style="text-align:center;padding:10px;color:var(--text2)">نصيبه من الربح</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+          <tfoot><tr style="background:var(--surface);font-weight:700">
+            <td colspan="3" style="padding:10px;color:var(--text2)">المجموع (${totalShares} سهم)</td>
+            <td style="text-align:center;padding:10px;color:var(--accent);font-size:15px">${fmt(netProfit)} د.ا</td>
+          </tfoot>
+        </table>
+      </div>
+      <div style="font-size:12px;color:var(--text2);margin-top:8px;text-align:center">
+        قيمة السهم الواحد: <strong style="color:var(--gold)">${fmt(profitPerShare)} د.ا</strong>
+      </div>`;
+  }
+
+  // حفظ البيانات المحسوبة للاستخدام عند التأكيد
+  yearCloseData._computed = { netProfit, profitPerShare, totalShares, members,
+    totalExpenses, totalBadDebt, grossProfit, uncollected, shYear,
+    capital, fundBalance, allUncollected };
+
+  document.getElementById('yearclose-overlay').classList.add('open');
+}
+
+function closeYearClose() {
+  yearCloseData = null;
+  document.getElementById('yearclose-overlay').classList.remove('open');
+}
+
+async function confirmYearClose() {
+  const confirmText = document.getElementById('yearclose-confirm').value.trim();
+  const distDate    = document.getElementById('yearclose-date').value;
+  const notes       = document.getElementById('yearclose-notes').value.trim();
+
+  if (confirmText !== 'إغلاق') { showToast('❌ يجب كتابة كلمة "إغلاق" للتأكيد'); return; }
+  if (!distDate) { showToast('❌ يجب تحديد تاريخ التوزيع'); return; }
+  if (!yearCloseData) return;
+
+  const btn = document.getElementById('yearclose-btn');
+  btn.disabled = true; btn.textContent = '⏳ جاري الإغلاق...';
+
+  try {
+    const { netProfit, profitPerShare, totalShares, members, shYear,
+            totalExpenses, totalBadDebt, grossProfit, uncollected } = yearCloseData._computed;
+
+    // ── بيانات التوزيع لكل مساهم ──
+    const membersWithProfit = members.map(m => {
+      const shares = Number(m.shares||0);
+      return { ...m, profit: profitPerShare * shares, shares };
+    });
+
+    // ── تحديث سنة yearly ──
+    const { capital, fundBalance, allUncollected } = yearCloseData._computed;
+    const updateData = {
+      closed:            true,
+      closed_at:         firebase.firestore.FieldValue.serverTimestamp(),
+      closed_by:         currentUser?.email || '—',
+      distribution_date: distDate,
+      notes_close:       notes,
+      net_profit:        netProfit,
+      gross_profit:      grossProfit,
+      total_expenses:    totalExpenses,
+      total_bad_debt:    totalBadDebt,
+      distributed:       netProfit,
+      profit_per_share:  profitPerShare,
+      fund_balance:      fundBalance,
+      capital_at_close:  capital,
+      uncollected_all:   allUncollected,
+      members:           membersWithProfit,
+    };
+
+    await db.collection('yearly').doc(yearCloseData.docId).update(updateData);
+    Object.assign(yearCloseData, updateData);
+
+    // ── حفظ قرار الإغلاق في year_close_entries ──
+    const closeRef = `YC-${yearCloseData.year?.replace('/','_')}-${Date.now().toString().slice(-4)}`;
+    await db.collection('year_close_entries').add({
+      entryRef:         closeRef,
+      fiscalYear:       yearCloseData.year,
+      label:            yearCloseData.label || '',
+      grossProfit,
+      totalExpenses,
+      totalBadDebt,
+      netProfit,
+      profitPerShare,
+      totalShares,
+      distribution:     membersWithProfit,
+      distributionDate: distDate,
+      uncollected,
+      closedBy:         currentUser?.email || '—',
+      closedAt:         firebase.firestore.FieldValue.serverTimestamp(),
+      notes,
+      debit:  'أرباح الفترة',
+      credit: 'حقوق المساهمين',
+    });
+
+    // ── سجل الأحداث ──
+    await writeAuditLog('YEAR_CLOSE',
+      yearCloseData.year,
+      `إغلاق السنة المالية ${yearCloseData.year} — صافي الربح: ${fmt(netProfit)} د.ا — المرجع: ${closeRef}`
+    );
+
+    closeYearClose();
+    renderYearly();
+    renderDashboard();
+    showToast(`✅ تم إغلاق السنة ${yearCloseData.year} — وُزِّع ${fmt(netProfit)} د.ا على ${members.length} مساهمين`);
+
+  } catch(err) {
+    console.error(err);
+    showToast('❌ فشل الإغلاق: ' + err.message);
+    btn.disabled = false;
+    btn.textContent = '🔒 تأكيد الإغلاق الرسمي';
+  }
+}
+
+function showFundBreakdown() {
+  const popup = document.getElementById('fund-breakdown-popup');
+  if (!popup) return;
+
+  if (popup.style.display !== 'none') {
+    popup.style.display = 'none';
+    return;
+  }
+
+  const bd = window._fundBreakdown;
+  if (!bd) { popup.innerHTML = '<span style="color:var(--text2)">اختر سنة مالية أولاً</span>'; popup.style.display = 'block'; return; }
+
+  const seasonRows = Object.entries(bd.uncollectedBySeason)
+    .sort(([a],[b]) => a.localeCompare(b))
+    .map(([fy, amt]) => `
+      <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border)">
+        <span style="color:var(--text2)">${fy}</span>
+        <span style="color:var(--orange);font-weight:600">${fmt(amt)} د.ا</span>
+      </div>`).join('');
+
+  popup.innerHTML = `
+    <div style="font-weight:600;color:var(--accent);margin-bottom:8px">📊 أساس حساب موجود الصندوق</div>
+    <div style="display:flex;justify-content:space-between;padding:4px 0">
+      <span style="color:var(--text2)">رأس المال</span>
+      <span style="color:var(--gold);font-weight:600">+ ${fmt(bd.capital)} د.ا</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:2px solid var(--border);margin-bottom:8px">
+      <span style="color:var(--text2)">صافي الأرباح</span>
+      <span style="color:var(--green);font-weight:600">+ ${fmt(bd.netProfit)} د.ا</span>
+    </div>
+    <div style="font-weight:600;color:var(--red);margin-bottom:6px">موجود السوق (المتبقي بالذمة) — ${fmt(bd.allUncollected)} د.ا</div>
+    ${seasonRows}
+    <div style="display:flex;justify-content:space-between;padding:8px 0;border-top:2px solid var(--border);margin-top:8px">
+      <span style="font-weight:700">موجود الصندوق</span>
+      <span style="font-weight:800;color:var(--accent);font-size:14px">${fmt(bd.fund)} د.ا</span>
+    </div>
+    <div style="font-size:11px;color:var(--text2);margin-top:6px;font-family:monospace">
+      ${fmt(bd.capital)} + ${fmt(bd.netProfit)} - ${fmt(bd.allUncollected)} = ${fmt(bd.fund)}
+    </div>`;
+  popup.style.display = 'block';
+}
+
+// ============================================================
+// إغلاق جميع السنوات السابقة (2014 حتى 2024) دفعة واحدة
+// ============================================================
+async function closeAllPreviousYears() {
+  if (!confirm('سيتم إغلاق جميع السنوات من 2014/2015 حتى 2024/2025 دفعة واحدة.\nهل أنت متأكد؟')) return;
+
+  const btn = document.getElementById('btn-close-all');
+  btn.disabled = true; btn.textContent = '⏳ جاري الإغلاق...';
+
+  // السنوات التي يجب إغلاقها (كل ما هو قبل 2025/2026)
+  const yearsToClose = DATA.yearly.filter(y => !y.closed && String(y.year) !== '2025/2026');
+
+  if (yearsToClose.length === 0) {
+    showToast('✅ جميع السنوات السابقة مغلقة بالفعل');
+    btn.disabled = false; btn.textContent = '🔒 إغلاق السنوات السابقة';
+    return;
+  }
+
+  let closed = 0;
+  const errors = [];
+
+  for (const y of yearsToClose) {
+    try {
+      const closeDate = y.distribution_date || '01/05/' + String(y.year).split('/')[1];
+
+      // بيانات الإغلاق من البيانات المحفوظة
+      const updateData = {
+        closed:            true,
+        closed_at:         firebase.firestore.FieldValue.serverTimestamp(),
+        closed_by:         currentUser?.email || 'system',
+        distribution_date: closeDate,
+        notes_close:       'إغلاق تلقائي للسنوات السابقة — تم التوزيع مسبقاً',
+        net_profit:        y.net_profit || y.profits || 0,
+        distributed:       y.distributed || 0,
+        profit_per_share:  y.profit_per_share || 0,
+        fund_balance:      y.fund_balance || 0,
+        members:           y.members || [],
+      };
+
+      await db.collection('yearly').doc(y.docId).update(updateData);
+      Object.assign(y, updateData);
+
+      // حفظ في year_close_entries
+      const closeRef = `YC-${String(y.year).replace('/','_')}-HIST`;
+      await db.collection('year_close_entries').add({
+        entryRef:         closeRef,
+        fiscalYear:       y.year,
+        label:            y.label || '',
+        grossProfit:      y.total_profit || 0,
+        totalExpenses:    (y.expenses||0)+(y.founding_exp||0)+(y.legal_fees||0),
+        totalBadDebt:     y.write_off_expense || 0,
+        netProfit:        y.net_profit || 0,
+        profitPerShare:   y.profit_per_share || 0,
+        distribution:     y.members || [],
+        distributionDate: closeDate,
+        distributed:      y.distributed || 0,
+        closedBy:         currentUser?.email || 'system',
+        closedAt:         firebase.firestore.FieldValue.serverTimestamp(),
+        notes:            'إغلاق تلقائي — تم التوزيع مسبقاً',
+        historical:       true,
+      });
+
+      closed++;
+      btn.textContent = `⏳ تم إغلاق ${closed}/${yearsToClose.length}...`;
+
+    } catch(err) {
+      console.error(`Error closing ${y.year}:`, err);
+      errors.push(y.year);
+    }
+  }
+
+  // سجل الأحداث
+  await writeAuditLog('YEAR_CLOSE', 'جميع السنوات السابقة',
+    `إغلاق ${closed} سنة مالية تاريخية من 2014/2015 حتى 2024/2025`);
+
+  renderYearly();
+  renderDashboard();
+
+  if (errors.length > 0) {
+    showToast(`⚠️ تم إغلاق ${closed} سنة — فشل: ${errors.join(', ')}`);
+  } else {
+    showToast(`✅ تم إغلاق ${closed} سنة مالية بنجاح`);
+  }
+
+  btn.disabled = false; btn.textContent = '🔒 إغلاق السنوات السابقة';
+}
+
+// تصحيح تواريخ التوزيع للسنوات المغلقة
+async function fixDistributionDates() {
+  if (!confirm('سيتم تصحيح تواريخ التوزيع لجميع السنوات. هل أنت متأكد؟')) return;
+
+  const correctDates = {
+    '2014/2015': '4/5/2015',
+    '2015/2016': '4/5/2016',
+    '2016/2017': '5/5/2017',
+    '2017/2018': '5/5/2018',
+    '2018/2019': '4/5/2019',
+    '2019/2020': '4/5/2020',
+    '2020/2021': '4/5/2021',
+    '2021/2022': '4/5/2022',
+    '2022/2023': '4/5/2023',
+    '2023/2024': '4/5/2024',
+    '2024/2025': '4/5/2025',
+  };
+
+  // تصحيح توزيع أرباح 2015/2016
+  const members2015 = [
+    {name:'مالك علي محمد الردايدة',  shares:7,  total:187.53, paid:187.53, remaining:0, reserved:0},
+    {name:'بدر خالد محمد الردايدة',  shares:4,  total:107.16, paid:107.16, remaining:0, reserved:0},
+    {name:'محمد صالح محمد الردايدة', shares:4,  total:107.16, paid:107.16, remaining:0, reserved:0},
+    {name:'احمد خالد محمد الردايدة', shares:7,  total:187.53, paid:187.53, remaining:0, reserved:0},
+    {name:'منير صالح محمد الردايدة', shares:4,  total:107.16, paid:107.16, remaining:0, reserved:0},
+    {name:'محمود صالح محمد الردايدة',shares:8,  total:214.32, paid:214.32, remaining:0, reserved:0},
+    {name:'يزيد خالد محمد الردايدة', shares:4,  total:107.16, paid:107.16, remaining:0, reserved:0},
+  ];
+
+  let fixed = 0;
+  for (const y of DATA.yearly) {
+    const correctDate = correctDates[y.year];
+    const updates = {};
+    if (correctDate && y.distribution_date !== correctDate) updates.distribution_date = correctDate;
+    if (y.year === '2015/2016' && (!y.members || y.members.length === 0)) {
+      updates.members = members2015;
+      updates.profit_per_share = 26.7895;
+    }
+    if (Object.keys(updates).length > 0 && y.docId) {
+      try {
+        await db.collection('yearly').doc(y.docId).update(updates);
+        Object.assign(y, updates);
+        fixed++;
+      } catch(e) { console.warn(`Failed to fix ${y.year}:`, e); }
+    }
+  }
+
+  renderYearly();
+  showToast(`✅ تم تصحيح ${fixed} تاريخ توزيع`);
+}
+
+// ── آخر الدفعات في لوحة التحكم ──────────────────────────────
+function renderRecentPayments() {
+  const el = document.getElementById('recent-payments-list');
+  if (!el) return;
+
+
+
+  // ترتيب حسب تاريخ آخر دفعة (last_payment_date) ثم تاريخ الشراء
+  const paid = DATA.transactions
+    .filter(t => (t.total_paid||0) > 0 && t.status !== 'written_off')
+    .map(t => ({
+      ...t,
+      _payDate: t.last_payment_date || t.purchase_date || ''
+    }))
+    .sort((a,b) => (b._payDate||'').localeCompare(a._payDate||''))
+    .slice(0, 5);
+
+  if (paid.length === 0) {
+    el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text2);font-size:13px">لا توجد دفعات مسجلة بعد</div>';
+    return;
+  }
+
+  el.innerHTML = paid.map(tx => {
+    const ia    = tx.installment_amount || 0;
+    const txPaid = tx.total_paid || 0;
+    const pct   = tx.sale_price > 0 ? Math.min(100, txPaid/tx.sale_price*100) : 0;
+    const instN = ia > 0 ? Math.min(Math.floor(txPaid/ia), tx.num_installments||0) : '—';
+    const isComplete = (tx.remaining||0) <= 0;
+
+    return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;display:flex;align-items:center;gap:12px">
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+          <span style="font-size:13px;font-weight:600;color:var(--text)">${tx.buyer_name||'—'}</span>
+          <span style="font-size:11px;padding:2px 8px;border-radius:10px;background:${isComplete?'rgba(67,217,140,.12)':'rgba(251,133,0,.12)'};color:${isComplete?'var(--green)':'var(--orange)'}">
+            ${isComplete?'✓ مكتملة':'● نشطة'}
+          </span>
+        </div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:6px">
+          ${tx.item||'—'} — ${tx.fiscal_year||'—'}
+          ${tx._payDate?`<span style="margin-right:8px;color:var(--accent)">📅 ${tx._payDate}</span>`:''}
+          ${tx.last_payment_amount?`<span style="color:var(--green)">آخر دفعة: ${fmt(tx.last_payment_amount)} د.ا</span>`:''}
+        </div>
+        <div style="display:flex;gap:12px;font-size:12px">
+          <span style="color:var(--green)">المدفوع: <strong>${fmt(txPaid)}</strong></span>
+          ${(tx.remaining||0)>0?`<span style="color:var(--orange)">المتبقي: <strong>${fmt(tx.remaining)}</strong></span>`:''}
+          ${ia>0?`<span style="color:var(--text2)">القسط ${instN}/${tx.num_installments||'—'}</span>`:''}
+        </div>
+        <div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden;margin-top:6px">
+          <div style="height:100%;background:var(--green);width:${pct.toFixed(0)}%;border-radius:2px"></div>
+        </div>
+      </div>
+      <button onclick="showTxReceipt('${tx.docId}')"
+        style="flex-shrink:0;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:12px;cursor:pointer;color:var(--accent);font-family:inherit;white-space:nowrap">
+        🧾 السند
+      </button>
+    </div>`;
+  }).join('');
+}
+
+// ============================================================
+// سجل الدفعات — Payments Report (Tab B)
+// ============================================================
+function switchReportTab(tab) {
+  document.getElementById('rpanel-transactions').style.display = tab === 'transactions' ? '' : 'none';
+  document.getElementById('rpanel-payments').style.display     = tab === 'payments'     ? '' : 'none';
+  document.getElementById('rtab-transactions').classList.toggle('active-rtab', tab === 'transactions');
+  document.getElementById('rtab-payments').classList.toggle('active-rtab', tab === 'payments');
+}
+
+function clearPaymentsFilters() {
+  document.getElementById('p-date-from').value   = '';
+  document.getElementById('p-date-to').value     = '';
+  document.getElementById('p-fiscal-year').value = 'all';
+  document.getElementById('p-buyer').value       = '';
+  document.getElementById('payments-result').style.display  = 'none';
+  document.getElementById('payments-summary').style.display = 'none';
+}
+
+function generatePaymentsReport() {
+  const dateFrom  = document.getElementById('p-date-from').value;
+  const dateTo    = document.getElementById('p-date-to').value;
+  const fiscalYear= document.getElementById('p-fiscal-year').value;
+  const buyer     = document.getElementById('p-buyer').value.trim().toLowerCase();
+
+  // بناء قائمة الدفعات من المعاملات
+  // كل معاملة لها last_payment_date و last_payment_amount
+  let rows = DATA.transactions
+    .filter(t => t.status !== 'written_off' && (t.total_paid||0) > 0)
+    .filter(t => !buyer || (t.buyer_name||'').toLowerCase().includes(buyer))
+    .filter(t => fiscalYear === 'all' || String(t.fiscal_year) === fiscalYear)
+    .filter(t => {
+      const d = t.last_payment_date || t.purchase_date || '';
+      if (dateFrom && d < dateFrom) return false;
+      if (dateTo   && d > dateTo)   return false;
+      return true;
+    })
+    .sort((a,b) => (b.last_payment_date||b.purchase_date||'').localeCompare(a.last_payment_date||a.purchase_date||''));
+
+  if (rows.length === 0) {
+    document.getElementById('payments-tbody').innerHTML =
+      '<tr><td colspan="10"><div class="empty-state"><div class="icon">🔍</div><p>لا توجد نتائج</p></div></td></tr>';
+    document.getElementById('payments-result').style.display  = 'block';
+    document.getElementById('payments-summary').style.display = 'none';
+    return;
+  }
+
+  // ملخص
+  const totalPaid  = rows.reduce((s,t) => s + (t.last_payment_amount||t.total_paid||0), 0);
+  const totalCount = rows.length;
+  document.getElementById('payments-summary').style.display = 'block';
+  document.getElementById('payments-summary').innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px">
+      <div class="stat-card" style="padding:14px 16px">
+        <div style="font-size:20px;font-weight:700;color:var(--accent)">${totalCount}</div>
+        <div style="font-size:12px;color:var(--text2)">عدد العمليات</div>
+      </div>
+      <div class="stat-card" style="padding:14px 16px">
+        <div style="font-size:20px;font-weight:700;color:var(--green)">${fmt(totalPaid)} د.ا</div>
+        <div style="font-size:12px;color:var(--text2)">إجمالي المدفوع</div>
+      </div>
+      <div class="stat-card" style="padding:14px 16px">
+        <div style="font-size:20px;font-weight:700;color:var(--orange)">${fmt(rows.reduce((s,t)=>s+(t.remaining||0),0))} د.ا</div>
+        <div style="font-size:12px;color:var(--text2)">إجمالي المتبقي</div>
+      </div>
+    </div>`;
+
+  // جدول الدفعات
+  document.getElementById('payments-tbody').innerHTML = rows.map((t,i) => {
+    const payDate  = t.last_payment_date || t.purchase_date || '—';
+    const payAmt   = t.last_payment_amount || t.total_paid || 0;
+    const isComplete = (t.remaining||0) <= 0;
+
+    return `<tr>
+      <td style="color:var(--text2)">${i+1}</td>
+      <td style="font-weight:500">${t.buyer_name||'—'}</td>
+      <td style="color:var(--text2)">${t.item||'—'}</td>
+      <td style="color:var(--text2)">${t.fiscal_year||'—'}</td>
+      <td style="color:var(--green);font-weight:600">${fmt(payAmt)} د.ا</td>
+      <td style="color:var(--accent)">${payDate}</td>
+      <td style="color:${isComplete?'var(--green)':'var(--orange)'};font-weight:${isComplete?'600':'400'}">
+        ${isComplete?'✓ مكتمل':fmt(t.remaining||0)+' د.ا'}
+      </td>
+      <td style="font-size:12px;color:var(--text2)">${getUserLabel()}</td>
+      <td>
+        <button onclick="showTxReceipt('${t.docId}')"
+          style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;color:var(--accent)">
+          🧾
+        </button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('payments-result').style.display = 'block';
+}
+
+function exportPaymentsXLSX() {
+  const tbody = document.getElementById('payments-tbody');
+  if (!tbody || tbody.children.length === 0) { showToast('❌ ولّد التقرير أولاً'); return; }
+
+  const dateFrom   = document.getElementById('p-date-from').value;
+  const dateTo     = document.getElementById('p-date-to').value;
+  const fiscalYear = document.getElementById('p-fiscal-year').value;
+  const buyer      = document.getElementById('p-buyer').value.trim().toLowerCase();
+
+  const rows = DATA.transactions
+    .filter(t => t.status !== 'written_off' && (t.total_paid||0) > 0)
+    .filter(t => !buyer || (t.buyer_name||'').toLowerCase().includes(buyer))
+    .filter(t => fiscalYear === 'all' || String(t.fiscal_year) === fiscalYear)
+    .filter(t => {
+      const d = t.last_payment_date || t.purchase_date || '';
+      if (dateFrom && d < dateFrom) return false;
+      if (dateTo   && d > dateTo)   return false;
+      return true;
+    })
+    .sort((a,b) => (b.last_payment_date||b.purchase_date||'').localeCompare(a.last_payment_date||a.purchase_date||''));
+
+  const data = [
+    ['#','اسم العميل','المادة','السنة المالية','المبلغ المدفوع','تاريخ الدفعة','المتبقي','الحالة'],
+    ...rows.map((t,i) => [
+      i+1,
+      t.buyer_name||'',
+      t.item||'',
+      t.fiscal_year||'',
+      t.last_payment_amount||t.total_paid||0,
+      t.last_payment_date||t.purchase_date||'',
+      t.remaining||0,
+      (t.remaining||0)<=0?'مكتمل':'نشط',
+    ])
+  ];
+
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'سجل الدفعات');
+  XLSX.writeFile(wb, `سجل_الدفعات_${new Date().toISOString().split('T')[0]}.xlsx`);
+  showToast('✅ تم تصدير سجل الدفعات');
+}
+
+// ============================================================
+// CUSTOMERS PAGE — صفحة العملاء
+// ============================================================
+function renderCustomersPage() {
+  const search     = (document.getElementById('cust-search')?.value || '').trim().toLowerCase();
+  const fiscalYear = document.getElementById('cust-fiscal')?.value || 'all';
+
+  // تجميع المعاملات حسب اسم العميل
+  const customersMap = {};
+  DATA.transactions.forEach(t => {
+    const name = t.buyer_name || '—';
+    if (search && !name.toLowerCase().includes(search)) return;
+    if (fiscalYear !== 'all' && String(t.fiscal_year) !== fiscalYear) return;
+    if (!customersMap[name]) customersMap[name] = { name, txs: [] };
+    customersMap[name].txs.push(t);
+  });
+
+  const customers = Object.values(customersMap).sort((a,b) => a.name.localeCompare(b.name, 'ar'));
+
+  // ملخص
+  const totalCustomers  = customers.length;
+  const totalPaid       = customers.reduce((s,c) => s + c.txs.reduce((ss,t) => ss+(t.total_paid||0), 0), 0);
+  const totalRemaining  = customers.reduce((s,c) => s + c.txs.reduce((ss,t) => ss+(t.remaining||0), 0), 0);
+  const completedCount  = customers.filter(c => c.txs.every(t => (t.remaining||0) <= 0)).length;
+
+  document.getElementById('customers-summary').innerHTML = `
+    <div style="background:var(--surface2);border-radius:10px;padding:12px 16px">
+      <div style="font-size:20px;font-weight:700;color:var(--accent)">${totalCustomers}</div>
+      <div style="font-size:12px;color:var(--text2)">إجمالي العملاء</div>
+    </div>
+    <div style="background:var(--surface2);border-radius:10px;padding:12px 16px">
+      <div style="font-size:20px;font-weight:700;color:var(--green)">${fmt(totalPaid)}</div>
+      <div style="font-size:12px;color:var(--text2)">إجمالي المدفوع</div>
+    </div>
+    <div style="background:var(--surface2);border-radius:10px;padding:12px 16px">
+      <div style="font-size:20px;font-weight:700;color:var(--orange)">${fmt(totalRemaining)}</div>
+      <div style="font-size:12px;color:var(--text2)">إجمالي المتبقي</div>
+    </div>
+    <div style="background:var(--surface2);border-radius:10px;padding:12px 16px">
+      <div style="font-size:20px;font-weight:700;color:var(--green)">${completedCount}</div>
+      <div style="font-size:12px;color:var(--text2)">عملاء مكتملون</div>
+    </div>`;
+
+  if (customers.length === 0) {
+    document.getElementById('customers-grid').innerHTML =
+      '<div style="text-align:center;padding:40px;color:var(--text2)">لا توجد نتائج</div>';
+    return;
+  }
+
+  document.getElementById('customers-grid').innerHTML = customers.map(cust => {
+    const totalSale  = cust.txs.reduce((s,t) => s+(t.sale_price||0), 0);
+    const totalPaid  = cust.txs.reduce((s,t) => s+(t.total_paid||0), 0);
+    const totalRem   = cust.txs.reduce((s,t) => s+(t.remaining||0), 0);
+    const pct        = totalSale > 0 ? Math.min(100, totalPaid/totalSale*100) : 0;
+    const isComplete = totalRem <= 0;
+    const hasWriteOff = cust.txs.some(t => t.status === 'written_off');
+
+    return `<div onclick="openCustomerProfile('${encodeURIComponent(cust.name)}')"
+      style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:14px"
+      onmouseover="this.style.borderColor='var(--accent)';this.style.background='var(--surface2)'"
+      onmouseout="this.style.borderColor='var(--border)';this.style.background='var(--surface)'">
+
+      <!-- أيقونة -->
+      <div style="width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;color:#fff;font-weight:700">
+        ${cust.name.trim()[0]||'؟'}
+      </div>
+
+      <!-- البيانات -->
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap">
+          <span style="font-size:14px;font-weight:600">${cust.name}</span>
+          ${hasWriteOff?'<span style="font-size:10px;padding:1px 7px;border-radius:10px;background:rgba(231,76,60,.12);color:var(--red)">🔴 دين معدوم</span>':''}
+          <span style="font-size:10px;padding:1px 7px;border-radius:10px;background:${isComplete?'rgba(67,217,140,.12)':'rgba(251,133,0,.12)'};color:${isComplete?'var(--green)':'var(--orange)'}">
+            ${isComplete?'✓ مكتمل':'● نشط'}
+          </span>
+        </div>
+        <div style="display:flex;gap:16px;font-size:12px;color:var(--text2);margin-bottom:6px;flex-wrap:wrap">
+          <span>${cust.txs.length} معاملة</span>
+          <span style="color:var(--green)">مدفوع: ${fmt(totalPaid)} د.ا</span>
+          ${totalRem>0?`<span style="color:var(--orange)">متبقي: ${fmt(totalRem)} د.ا</span>`:''}
+        </div>
+        <div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden">
+          <div style="height:100%;background:${isComplete?'var(--green)':'var(--accent)'};width:${pct.toFixed(0)}%;border-radius:2px"></div>
+        </div>
+      </div>
+
+      <div style="color:var(--text2);font-size:18px;flex-shrink:0">›</div>
+    </div>`;
+  }).join('');
+}
+
+// ── صفحة تقرير العميل ────────────────────────────────────────
+function openCustomerProfile(encodedName) {
+  const name = decodeURIComponent(encodedName);
+  const txs  = DATA.transactions.filter(t => t.buyer_name === name);
+  if (txs.length === 0) return;
+
+  const totalSale = txs.reduce((s,t) => s+(t.sale_price||0), 0);
+  const totalPaid = txs.reduce((s,t) => s+(t.total_paid||0), 0);
+  const totalRem  = txs.reduce((s,t) => s+(t.remaining||0), 0);
+  const pct       = totalSale > 0 ? Math.min(100, totalPaid/totalSale*100) : 0;
+
+  const txRows = txs
+    .sort((a,b) => (b.fiscal_year||'').localeCompare(a.fiscal_year||''))
+    .map(t => {
+      const st = txStatus(t);
+      const isWriteOff = t.status === 'written_off';
+      return `<tr style="cursor:pointer;${isWriteOff?'opacity:.6':''}"
+        onclick="openModal('${t.docId}')"
+        onmouseover="this.style.background='var(--surface2)'"
+        onmouseout="this.style.background=''">
+        <td style="font-family:monospace;font-size:11px;color:var(--accent)">${t.client_id||'—'}</td>
+        <td>${t.fiscal_year||'—'}</td>
+        <td>${t.item||'—'}</td>
+        <td style="color:var(--gold)">${fmt(t.sale_price||0)} د.ا</td>
+        <td style="color:var(--green);font-weight:600">${fmt(t.total_paid||0)} د.ا</td>
+        <td style="color:${(t.remaining||0)<=0?'var(--green)':'var(--orange)'}">${fmt(t.remaining||0)} د.ا</td>
+        <td><span class="badge ${st.cls}">${st.label}</span></td>
+        <td style="color:var(--text2);font-size:12px">›</td>
+      </tr>`;
+    }).join('');
+
+  document.getElementById('customer-profile-content').innerHTML = `
+    <!-- ملخص العميل -->
+    <div class="card" style="margin-bottom:20px">
+      <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;flex-wrap:wrap">
+        <div style="width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:24px;color:#fff;font-weight:700;flex-shrink:0">
+          ${name.trim()[0]||'؟'}
+        </div>
+        <div style="flex:1">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <div style="font-size:20px;font-weight:800" id="profile-customer-name">${name}</div>
+            <button onclick="editCustomerName('${encodedName}')"
+              style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:3px 10px;font-size:12px;cursor:pointer;color:var(--accent)">
+              ✏️ تعديل الاسم
+            </button>
+          </div>
+          <div style="font-size:13px;color:var(--text2);margin-top:2px">${txs.length} معاملة</div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:14px">
+        <div style="background:var(--surface2);border-radius:10px;padding:12px 14px">
+          <div style="font-size:18px;font-weight:700;color:var(--gold)">${fmt(totalSale)} د.ا</div>
+          <div style="font-size:11px;color:var(--text2)">إجمالي المشتريات</div>
+        </div>
+        <div style="background:var(--surface2);border-radius:10px;padding:12px 14px">
+          <div style="font-size:18px;font-weight:700;color:var(--green)">${fmt(totalPaid)} د.ا</div>
+          <div style="font-size:11px;color:var(--text2)">إجمالي المدفوع</div>
+        </div>
+        <div style="background:var(--surface2);border-radius:10px;padding:12px 14px">
+          <div style="font-size:18px;font-weight:700;color:${totalRem<=0?'var(--green)':'var(--orange)'}">${fmt(totalRem)} د.ا</div>
+          <div style="font-size:11px;color:var(--text2)">إجمالي المتبقي</div>
+        </div>
+        <div style="background:var(--surface2);border-radius:10px;padding:12px 14px">
+          <div style="font-size:18px;font-weight:700;color:var(--accent)">${pct.toFixed(1)}%</div>
+          <div style="font-size:11px;color:var(--text2)">نسبة السداد</div>
+        </div>
+      </div>
+
+      <div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden">
+        <div style="height:100%;background:linear-gradient(90deg,var(--accent),var(--green));width:${pct.toFixed(0)}%;border-radius:4px;transition:width .5s"></div>
+      </div>
+    </div>
+
+    <!-- جدول المعاملات -->
+    <div class="card">
+      <div class="section-title" style="margin-bottom:14px">📋 المعاملات</div>
+      <div class="tx-table-wrap" style="border-radius:10px">
+        <table class="tx-table" style="width:100%">
+          <thead><tr>
+            <th>رقم العميل</th>
+            <th>السنة</th>
+            <th>المادة</th>
+            <th>سعر البيع</th>
+            <th>المدفوع</th>
+            <th>المتبقي</th>
+            <th>الحالة</th>
+            <th></th>
+          </tr></thead>
+          <tbody>${txRows}</tbody>
+        </table>
+      </div>
+      <div style="font-size:12px;color:var(--text2);margin-top:10px;text-align:center">
+        اضغط على أي معاملة لعرض تفاصيلها الكاملة
+      </div>
+    </div>`;
+
+  // Show customer profile page using showPage
+  showPage('customer-profile');
+}
+
+// ── تعديل اسم العميل ──────────────────────────────────────────
+async function editCustomerName(encodedOldName) {
+  const oldName = decodeURIComponent(encodedOldName);
+
+  const newName = prompt(`تعديل اسم العميل\n\nالاسم الحالي: ${oldName}\n\nأدخل الاسم الجديد:`, oldName);
+  if (!newName || newName.trim() === '' || newName.trim() === oldName) return;
+  const trimmedNew = newName.trim();
+
+  // تحقق إذا الاسم الجديد موجود مسبقاً (دمج)
+  const existingTxs = DATA.transactions.filter(t => t.buyer_name === trimmedNew);
+  const currentTxs  = DATA.transactions.filter(t => t.buyer_name === oldName);
+
+  let confirmMsg = `تغيير اسم "${oldName}" إلى "${trimmedNew}"؟\n\nسيتم تحديث ${currentTxs.length} معاملة.`;
+  if (existingTxs.length > 0) {
+    confirmMsg = `⚠️ يوجد عميل باسم "${trimmedNew}" لديه ${existingTxs.length} معاملة.\n\nهل تريد دمج معاملات "${oldName}" مع "${trimmedNew}"؟\n\nإجمالي المعاملات بعد الدمج: ${currentTxs.length + existingTxs.length}`;
+  }
+  if (!confirm(confirmMsg)) return;
+
+  try {
+    // تحديث جميع معاملات العميل القديم
+    const batch = db.batch();
+    for (const tx of currentTxs) {
+      const ref = db.collection('transactions').doc(tx.docId);
+      batch.update(ref, { buyer_name: trimmedNew });
+      tx.buyer_name = trimmedNew;
+    }
+    await batch.commit();
+
+    // سجل الأحداث
+    const action = existingTxs.length > 0
+      ? `دمج عميل "${oldName}" مع "${trimmedNew}" — ${currentTxs.length} معاملة`
+      : `تغيير اسم العميل من "${oldName}" إلى "${trimmedNew}" — ${currentTxs.length} معاملة`;
+    await writeAuditLog('SETTINGS', oldName, action);
+
+    showToast(`✅ تم ${existingTxs.length > 0 ? 'الدمج' : 'التعديل'} بنجاح`);
+
+    // إعادة رسم صفحة العميل بالاسم الجديد
+    openCustomerProfile(encodeURIComponent(trimmedNew));
+
+  } catch(err) {
+    showToast('❌ فشل التعديل: ' + err.message);
+  }
+}
+
+function showFundBreakdownDash(capital, profit, uncollected, fund) {
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  overlay.onclick = (e) => { if(e.target===overlay) overlay.remove(); };
+
+  // تفصيل المتبقي لكل سنة
+  const uncollectedBySeason = {};
+  DATA.transactions.filter(t => t.status !== 'written_off' && (t.remaining||0) > 0).forEach(t => {
+    const fy = t.fiscal_year || '—';
+    if (!uncollectedBySeason[fy]) uncollectedBySeason[fy] = 0;
+    uncollectedBySeason[fy] += t.remaining||0;
+  });
+
+  const seasonRows = Object.entries(uncollectedBySeason)
+    .sort(([a],[b]) => a.localeCompare(b))
+    .map(([fy,amt]) => `
+      <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:0.5px solid rgba(255,255,255,.1);font-size:13px">
+        <span style="color:rgba(255,255,255,.7)">${fy}</span>
+        <span style="color:#ff9f43;font-weight:600">${fmt(amt)} د.ا</span>
+      </div>`).join('');
+
+  overlay.innerHTML = `
+    <div style="background:#1a1a2e;border-radius:16px;padding:24px;max-width:420px;width:100%;border:1px solid rgba(255,255,255,.1);direction:rtl">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+        <div style="font-size:18px;font-weight:700;color:#fff">🏛️ موجود الصندوق</div>
+        <button onclick="this.closest('div[style*=fixed]').remove()" style="background:none;border:none;color:rgba(255,255,255,.5);font-size:20px;cursor:pointer">✕</button>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:0.5px solid rgba(255,255,255,.1);font-size:14px">
+        <span style="color:rgba(255,255,255,.7)">رأس المال</span>
+        <span style="color:#f9ca24;font-weight:600">+ ${fmt(capital)} د.ا</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:2px solid rgba(255,255,255,.15);font-size:14px;margin-bottom:12px">
+        <span style="color:rgba(255,255,255,.7)">صافي الأرباح</span>
+        <span style="color:#6ab04c;font-weight:600">+ ${fmt(profit)} د.ا</span>
+      </div>
+      <div style="font-size:13px;color:rgba(255,255,255,.5);margin-bottom:8px">موجود السوق (مجموع المتبقي بالذمة)</div>
+      ${seasonRows}
+      <div style="display:flex;justify-content:space-between;padding:10px 0;border-top:2px solid rgba(255,255,255,.15);margin-top:12px;font-size:14px">
+        <span style="color:rgba(255,255,255,.7)">إجمالي موجود السوق</span>
+        <span style="color:#ff9f43;font-weight:600">- ${fmt(uncollected)} د.ا</span>
+      </div>
+      <div style="background:rgba(108,99,255,.2);border-radius:10px;padding:14px;margin-top:12px;text-align:center">
+        <div style="font-size:13px;color:rgba(255,255,255,.6);margin-bottom:4px">موجود الصندوق</div>
+        <div style="font-size:28px;font-weight:800;color:${fund>=0?'#6ab04c':'#ff5f5f'}">${fmt(fund)} د.ا</div>
+        <div style="font-size:12px;color:rgba(255,255,255,.4);margin-top:4px;font-family:monospace">${fmt(capital)} + ${fmt(profit)} - ${fmt(uncollected)}</div>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
 }
 </script>
 </body>
